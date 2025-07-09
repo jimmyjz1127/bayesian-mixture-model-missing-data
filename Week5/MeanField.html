@@ -7854,7 +7854,7 @@ $$\begin{align}
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=85296bc2">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=9a0fc339">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -7894,73 +7894,73 @@ where
 $$\begin{align}
      (1) \quad \mathbb{E}_{q(\boldsymbol{\mu})}\Big[ \log \mathcal{N}(\mathbf{x}_n|\boldsymbol{\mu}_{k},\boldsymbol{\Sigma}_k) \Big] &amp;= \mathbb{E}_{q(\boldsymbol{\mu})}\Big[ \underbrace{-\frac{1}{2}(\mathbf{x}_n - \boldsymbol{\mu}_k)^T\boldsymbol{\Sigma}_k^{-1}(\mathbf{x}_n - \boldsymbol{\mu}_k)}_{\text{Terms dependent on $\boldsymbol{\mu}_k$}} \Big],\quad \text{Independent terms absorbed to const}\\\\
 
-    &amp;= -\frac{1}{2}\Bigg[\mathbb{E}_{q(\boldsymbol{\mu})} \Big[\mathbf{x}_k^T\boldsymbol{\Sigma}_k^{-1}\mathbf{x}_k - 2\mathbf{x}_k^T\boldsymbol{\Sigma}_k^{-1}\boldsymbol{\mu}_k + \boldsymbol{\mu}_k^T\boldsymbol{\Sigma}_k^{-1}\boldsymbol{\mu}_k \Big]\Bigg]\\\\
+    &amp;= -\frac{1}{2}\Bigg[\mathbb{E}_{q(\boldsymbol{\mu})} \Big[\mathbf{x}_n^T\boldsymbol{\Sigma}_k^{-1}\mathbf{x}_n - 2\mathbf{x}_n^T\boldsymbol{\Sigma}_k^{-1}\boldsymbol{\mu}_k + \boldsymbol{\mu}_k^T\boldsymbol{\Sigma}_k^{-1}\boldsymbol{\mu}_k \Big]\Bigg]\\\\
 
     &amp;= -\frac{1}{2}\Bigg[ 
-            \mathbf{x}_k^T\boldsymbol{\Sigma}_k^{-1}\mathbf{x}_k - 
-            2\mathbf{x}_k^T\boldsymbol{\Sigma}_k^{-1} \mathbb{E}_{q(\boldsymbol{\mu})}\Big[\boldsymbol{\mu}_k\Big] + 
+            \mathbf{x}_n^T\boldsymbol{\Sigma}_k^{-1}\mathbf{x}_n - 
+            2\mathbf{x}_n^T\boldsymbol{\Sigma}_k^{-1} \mathbb{E}_{q(\boldsymbol{\mu})}\Big[\boldsymbol{\mu}_k\Big] + 
             \mathbb{E}_{q(\boldsymbol{\mu})}\Big[\boldsymbol{\mu}_k^T\boldsymbol{\Sigma}_k^{-1}\boldsymbol{\mu}_k\Big]
         \Bigg]\\\\
 
     &amp;= -\frac{1}{2}\Bigg[ 
-            \mathbf{x}_k^T\boldsymbol{\Sigma}_k^{-1}\mathbf{x}_k - 
-            2\mathbf{x}_k^T\boldsymbol{\Sigma}_k^{-1} \mathbb{E}_{q(\boldsymbol{\mu})}\Big[\boldsymbol{\mu}_k\Big] + 
+            \mathbf{x}_n^T\boldsymbol{\Sigma}_k^{-1}\mathbf{x}_n - 
+            2\mathbf{x}_n^T\boldsymbol{\Sigma}_k^{-1} \mathbb{E}_{q(\boldsymbol{\mu})}\Big[\boldsymbol{\mu}_k\Big] + 
             \mathbb{E}_{q(\boldsymbol{\mu})}\Big[\text{tr}(\boldsymbol{\mu}_k^T\boldsymbol{\Sigma}_k^{-1}\boldsymbol{\mu}_k)\Big]
         \Bigg]\\\\
 
     &amp;= -\frac{1}{2}\Bigg[
-            \mathbf{x}_k^T\boldsymbol{\Sigma}_k^{-1}\mathbf{x}_k - 
-            2\mathbf{x}_k^T\boldsymbol{\Sigma}_k^{-1} \mathbb{E}_{q(\boldsymbol{\mu})}\Big[\boldsymbol{\mu}_k\Big] + 
+            \mathbf{x}_n^T\boldsymbol{\Sigma}_k^{-1}\mathbf{x}_n - 
+            2\mathbf{x}_n^T\boldsymbol{\Sigma}_k^{-1} \mathbb{E}_{q(\boldsymbol{\mu})}\Big[\boldsymbol{\mu}_k\Big] + 
             \mathbb{E}_{q(\boldsymbol{\mu})}\Big[\text{tr}(\boldsymbol{\Sigma}_k^{-1}\boldsymbol{\mu}_k\boldsymbol{\mu}_k^T)\Big]
         \Bigg], \quad \text{Trace cyclic property}\\\\
 
     &amp;= -\frac{1}{2}\Bigg[
-            \mathbf{x}_k^T\boldsymbol{\Sigma}_k^{-1}\mathbf{x}_k - 
-            2\mathbf{x}_k^T\boldsymbol{\Sigma}_k^{-1} \mathbb{E}_{q(\boldsymbol{\mu})}\Big[\boldsymbol{\mu}_k\Big] + 
+            \mathbf{x}_n^T\boldsymbol{\Sigma}_k^{-1}\mathbf{x}_n - 
+            2\mathbf{x}_n^T\boldsymbol{\Sigma}_k^{-1} \mathbb{E}_{q(\boldsymbol{\mu})}\Big[\boldsymbol{\mu}_k\Big] + 
             \text{tr}\Big(\mathbb{E}_{q(\boldsymbol{\mu})}\big[\boldsymbol{\Sigma}_k^{-1}\boldsymbol{\mu}_k\boldsymbol{\mu}_k^T\big]\Big)
         \Bigg]\\\\
 
     &amp;= -\frac{1}{2}\Bigg[
-            \mathbf{x}_k^T\boldsymbol{\Sigma}_k^{-1}\mathbf{x}_k - 
-            2\mathbf{x}_k^T\boldsymbol{\Sigma}_k^{-1} \mathbb{E}_{q(\boldsymbol{\mu})}\Big[\boldsymbol{\mu}_k\Big] + 
+            \mathbf{x}_n^T\boldsymbol{\Sigma}_k^{-1}\mathbf{x}_n - 
+            2\mathbf{x}_n^T\boldsymbol{\Sigma}_k^{-1} \mathbb{E}_{q(\boldsymbol{\mu})}\Big[\boldsymbol{\mu}_k\Big] + 
             \text{tr}\Big(\underline{\boldsymbol{\Sigma}_k^{-1} \cdot \mathbb{E}_{q(\boldsymbol{\mu})}\big[\boldsymbol{\mu}_k\boldsymbol{\mu}_k^T\big]}\Big)
         \Bigg], \quad \boldsymbol{\Sigma}_k^{-1} \text{ constant to expectation}\\\\
 
     &amp;= -\frac{1}{2}\Bigg[
-            \mathbf{x}_k^T\boldsymbol{\Sigma}_k^{-1}\mathbf{x}_k - 
-            2\mathbf{x}_k^T\boldsymbol{\Sigma}_k^{-1} \underline{\mathbf{m}_{k} }+ 
+            \mathbf{x}_n^T\boldsymbol{\Sigma}_k^{-1}\mathbf{x}_n - 
+            2\mathbf{x}_n^T\boldsymbol{\Sigma}_k^{-1} \underline{\mathbf{m}_{k} }+ 
             \text{tr}\Big(\boldsymbol{\Sigma}_k^{-1} \cdot (\underline{\mathbf{m}_{k}\mathbf{m}_{k}^T + \mathbf{V}_{k}} )\Big)
         \Bigg]
         ,\quad \text{ For } q(\boldsymbol{\mu}_k ) = \mathcal{N}(\mathbf{m}_{k},\mathbf{V}_{k})\\\\
 
     &amp;= -\frac{1}{2}\Bigg[
-            \mathbf{x}_k^T\boldsymbol{\Sigma}_k^{-1}\mathbf{x}_k - 
-            2\mathbf{x}_k^T\boldsymbol{\Sigma}_k^{-1} \mathbf{m}_{k} + 
+            \mathbf{x}_n^T\boldsymbol{\Sigma}_k^{-1}\mathbf{x}_n - 
+            2\mathbf{x}_n^T\boldsymbol{\Sigma}_k^{-1} \mathbf{m}_{k} + 
             \text{tr}\Big(\boldsymbol{\Sigma}_k^{-1}\mathbf{m}_{k}\mathbf{m}_{k}^T + \boldsymbol{\Sigma}_k^{-1}\mathbf{V}_{k} \Big)
         \Bigg]\\\\
 
     &amp;= -\frac{1}{2}\Bigg[
-            \mathbf{x}_k^T\boldsymbol{\Sigma}_k^{-1}\mathbf{x}_k - 
-            2\mathbf{x}_k^T\boldsymbol{\Sigma}_k^{-1} \mathbf{m}_{k} + 
+            \mathbf{x}_n^T\boldsymbol{\Sigma}_k^{-1}\mathbf{x}_n - 
+            2\mathbf{x}_n^T\boldsymbol{\Sigma}_k^{-1} \mathbf{m}_{k} + 
             \text{tr}\Big(\boldsymbol{\Sigma}_k^{-1}\mathbf{m}_{k}\mathbf{m}_{k}^T\Big) + \text{tr}\Big(\boldsymbol{\Sigma}_k^{-1}\mathbf{V}_{k} \Big)
         \Bigg]\\\\
 
     &amp;= -\frac{1}{2}\Bigg[
-            \mathbf{x}_k^T\boldsymbol{\Sigma}_k^{-1}\mathbf{x}_k - 
-            2\mathbf{x}_k^T\boldsymbol{\Sigma}_k^{-1} \mathbf{m}_{k} + 
+            \mathbf{x}_n^T\boldsymbol{\Sigma}_k^{-1}\mathbf{x}_n - 
+            2\mathbf{x}_n^T\boldsymbol{\Sigma}_k^{-1} \mathbf{m}_{k} + 
             \text{tr}\Big(\mathbf{m}_{k}^T\boldsymbol{\Sigma}_k^{-1}\mathbf{m}_{k}\Big) + \text{tr}\Big(\boldsymbol{\Sigma}_k^{-1}\mathbf{V}_{k} \Big)
         \Bigg]\\\\
 
     &amp;= -\frac{1}{2}\Bigg[
-            \mathbf{x}_k^T\boldsymbol{\Sigma}_k^{-1}\mathbf{x}_k - 
-            2\mathbf{x}_k^T\boldsymbol{\Sigma}_k^{-1} \mathbf{m}_{k} + 
+            \mathbf{x}_n^T\boldsymbol{\Sigma}_k^{-1}\mathbf{x}_n - 
+            2\mathbf{x}_n^T\boldsymbol{\Sigma}_k^{-1} \mathbf{m}_{k} + 
             \mathbf{m}_{k}^T\boldsymbol{\Sigma}_k^{-1}\mathbf{m}_{k} + 
             \text{tr}\Big(\boldsymbol{\Sigma}_k^{-1}\mathbf{V}_{k} \Big)
         \Bigg]\\\\
 
     &amp;= -\frac{1}{2}\Bigg[
             \text{tr}\Big(\boldsymbol{\Sigma}_k^{-1}\mathbf{V}_{k} \Big) + 
-        (\mathbf{x}_k - \mathbf{m}_{k})^T \boldsymbol{\Sigma}_k^{-1} (\mathbf{x}_k - \mathbf{m}_{k})
+        (\mathbf{x}_n - \mathbf{m}_{k})^T \boldsymbol{\Sigma}_k^{-1} (\mathbf{x}_n - \mathbf{m}_{k})
         \Bigg]\\\\
 \end{align}$$</p>
 <p>For (2), given that each marginal of a Dirichlet distribution is a Beta distribution with : $\boldsymbol{\pi}_k \sim \text{Beta}(\alpha_k, \sum_{k'}\alpha_{k'}-\alpha_k)$<br/>
@@ -7972,13 +7972,13 @@ $$\begin{align}
 $$\begin{align}
     \log q(z_n=k) &amp;= -\frac{1}{2}\Bigg[ 
                                         \text{tr}\Big(\boldsymbol{\Sigma}_k^{-1}\mathbf{V}_{k} \Big) + \
-                                        (\mathbf{x}_k - \mathbf{m}_{k})^T \boldsymbol{\Sigma}_k^{-1} (\mathbf{x}_k - \mathbf{m}_{k})
+                                        (\mathbf{x}_n - \mathbf{m}_{k})^T \boldsymbol{\Sigma}_k^{-1} (\mathbf{x}_n - \mathbf{m}_{k})
                                   \Bigg] +
                      \psi(\alpha_k) - \psi\Big(\sum_{k'}\alpha_{k'}\Big) + \text{const}\\\\
 
     \implies &amp; \boxed{q(z_n=k) =  \exp \Bigg( \psi(\alpha_k) - \psi\big(\sum_{k'}\alpha_{k'}\big) + -\frac{1}{2}\Big[ 
                                         \text{tr}\big(\boldsymbol{\Sigma}_k^{-1}\mathbf{V}_{k} \big) + \
-                                        (\mathbf{x}_k - \mathbf{m}_{k})^T \boldsymbol{\Sigma}_k^{-1} (\mathbf{x}_k - \mathbf{m}_{k})
+                                        (\mathbf{x}_n - \mathbf{m}_{k})^T \boldsymbol{\Sigma}_k^{-1} (\mathbf{x}_n - \mathbf{m}_{k})
                                   \Big]  + \underbrace{\text{const}}_{\text{Normalization}}\Bigg)}
 \end{align}$$</p>
 </div>
@@ -8003,7 +8003,7 @@ $$\begin{align}
 
     &amp;\boxed{q(z_n=k) =  \frac{\exp \Bigg( \psi(\alpha_k) - \psi\big(\sum_{k'}\alpha_{k'}\big) + -\frac{1}{2}\Big[ 
                                         \text{tr}\big(\boldsymbol{\Sigma}_k^{-1}\mathbf{V}_{k} \big) + \
-                                        (\mathbf{x}_k - \mathbf{m}_{k})^T \boldsymbol{\Sigma}_k^{-1} (\mathbf{x}_k - \mathbf{m}_{k})
+                                        (\mathbf{x}_n - \mathbf{m}_{k})^T \boldsymbol{\Sigma}_k^{-1} (\mathbf{x}_n - \mathbf{m}_{k})
                                   \Big]\Bigg)}{\sum_j^K \exp \Bigg( \psi(\alpha_j) - \psi\big(\sum_{k'}\alpha_{k'}\big) + -\frac{1}{2}\Big[ 
                                         \text{tr}\big(\boldsymbol{\Sigma}_j^{-1}\mathbf{V}_{j} \big) + \
                                         (\mathbf{x}_j - \mathbf{m}_{j})^T \boldsymbol{\Sigma}_j^{-1} (\mathbf{x}_j - \mathbf{m}_{j})
