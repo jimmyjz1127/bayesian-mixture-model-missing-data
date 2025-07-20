@@ -10,6 +10,9 @@ from sklearn.pipeline import Pipeline
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn import set_config
 
+from datasets.gaussian import GaussianDataset
+from datasets.bernoulli import BernoulliDataset
+
 import sys
 import argparse
 
@@ -22,6 +25,9 @@ def gaussian_pipeline(X_train, X_test):
     X_test_prepared = pipeline.transform(X_test)
 
     return X_train_prepared, X_test_prepared
+
+def bernoulli_pipeline(X_train, X_test):
+    return
 
 def pipeline(args):
     df = pd.read_csv(args.input)
