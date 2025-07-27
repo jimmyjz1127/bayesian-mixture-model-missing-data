@@ -24,35 +24,33 @@ class VBEMModel(ABC):
         pass 
 
     
-    def update_z(self,X,dataLogProb,α,πs,mode=0):
-        N,D = X.shape
+    def update_z(self,dataLogProb):
+        N,D = self.X.shape
 
-        R = np.zeros((N,self.K))
+        self.R = np.zeros((N,self.K))
 
-        α_sum = psi(np.sum(α))
+        α_sum = psi(np.sum(self.α))
 
         for k in range(self.K):
-            logprior = psi(α[k]) - α_sum
+            logprior = psi(self.α[k]) - α_sum
 
-            R[:,k] = dataLogProb[:,k].copy()
+            self.R[:,k] = dataLogProb[:,k].copy()
 
-            if mode == 0:
-                R[:,k] += logprior
-            elif mode == 1:
-                R[:,k] += np.log(πs[k])
+            if self.mode == 0:
+                self.R[:,k] += logprior
+            elif self.mode == 1:
+                self.R[:,k] += np.log(self.π[k])
 
-        log_norm = logsumexp(R,axis=1,keepdims=True)
+        log_norm = logsumexp(self.R,axis=1,keepdims=True)
 
-        R = np.exp(R - log_norm)
+        self.R = np.exp(self.R - log_norm)
 
         loglik = np.sum(log_norm) / N
 
-        return R,loglik
+        return loglik
     
-    def update_π(self,R):
-        αs = self.α_0 + np.sum(R, axis=0) 
-
-        return αs
+    def update_π(self):
+        self.α = self.α_0 + np.sum(self.R, axis=0) 
     
     def b_func(self, α):
         return np.sum(gammaln(α), axis=0) - gammaln(α.sum())
@@ -60,5 +58,5 @@ class VBEMModel(ABC):
     def kl_pi(self, α):
         return self.b_func(α) - self.b_func(self.α_0) + np.sum((self.α_0 - α) * (psi(α) - psi(α.sum())))
     
-    def kl_z(self, R,α):
-        return np.sum( R * (psi(α) - psi(α.sum()))[None,:] - (R * np.log(R + 1e-12)))
+    def kl_z(self, R, α):
+        return np.sum(R * (psi(α) - psi(α.sum()))[None,:] - (R * np.log(R + 1e-12)))
