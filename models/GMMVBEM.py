@@ -60,7 +60,7 @@ class GMMVBEM(VBEMModel):
         return V_k, m_k, Σ_map,n_k
 
 
-    def gaussian_logprob_missing(self,X,ms,Σs,nk,missing_mask):
+    def logprob(self,X,ms,Σs,nk,missing_mask):
         N,D = X.shape
 
         conditional_means = np.array([[None]*self.K for _ in range(N)])
@@ -232,6 +232,14 @@ class GMMVBEM(VBEMModel):
      
     
     def fit(self, X, max_iters=200, tol=1e-4, mode=0):
+        """
+            Parameters:
+            X         : input data (N, D)
+            max_iters : maximum iterations to perform
+            tol       : convergence criteria for elbo
+            mode      : 1 for MLE estimate of pi, 0 for variational update
+        """
+
         N,D = X.shape
 
         missing_mask = np.isnan(X)
@@ -269,7 +277,7 @@ class GMMVBEM(VBEMModel):
             πs = np.sum(R,axis=0)/N
             α = self.update_π(R)
 
-            m_ho, V_ho, logprobs = self.gaussian_logprob_missing(X,m,Σ,nk,missing_mask)
+            m_ho, V_ho, logprobs = self.logprob(X,m,Σ,nk,missing_mask)
 
             x_hats, x_hats_outer = self.compute_sufficient_stats(X,m_ho,V_ho, missing_mask)
 
@@ -287,6 +295,7 @@ class GMMVBEM(VBEMModel):
         self.result = {
             'R'            : R,             # Responsibility matrix  (N,K)
             'z'            : z,             # Cluster assignments    (N)
+            'α'            : α,             # dirichlet prior        (K)
             'Vk'           : V,             # prior covariance on μ  (K,D,D)
             'm'            : m,             # prior mean on μ        (K,D)
             'Σ'            : Σ,             # MAP estimate of Σ      (K,D,D)
