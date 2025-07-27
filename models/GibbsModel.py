@@ -29,9 +29,9 @@ class GibbsModel(ABC):
         # Inverse sample from categorical distribution
         cdf = np.cumsum(p, axis=1) # compute CDF for each row (each categorical distribution)
         u   = self.rng.random(size=(p.shape[0], 1))
-        return (cdf > u).argmax(axis=1)  # return first index where cdf is greater than random u
+        self.z = (cdf > u).argmax(axis=1)  # return first index where cdf is greater than random u
     
-    def sample_π(self, z):
+    def sample_π(self):
         ''' 
             Samples mixing weights from Dirichlet distribution parameterized by pseudocounts of components
             
@@ -40,9 +40,8 @@ class GibbsModel(ABC):
             @param (K)   : the number of components
         '''
 
-        z_counts = np.bincount(z.astype(np.int64), minlength=self.K)
-        return self.rng.dirichlet(self.α_0 + z_counts)
-    
+        z_counts = np.bincount(self.z.astype(np.int64), minlength=self.K)
+        self.π = self.rng.dirichlet(self.α_0 + z_counts)   
 
 
     def get_map_params(self):

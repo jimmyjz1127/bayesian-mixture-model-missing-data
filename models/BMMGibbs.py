@@ -24,14 +24,14 @@ class BMMGibbs(GibbsModel):
         self.a_0 = priorParameters.a_0
         self.b_0 = priorParameters.b_0
 
-    def likelihood(self, X, θ, π, missing_mask, missing ):
+    def likelihood(self,X,missing_mask,missing):
         N,D = X.shape
-        K,_ = θ.shape 
+        K,_ = self.θ.shape 
         log_ps = np.zeros((N,K))
-        obs_mask = ~np.isnan(X)
+        obs_mask = ~missing_mask
 
         if not missing:
-            logp  = np.log(π) + (X @ np.log(θ).T + (1 - X) @ np.log(1 - θ).T) # log likelihood
+            logp  = np.log(self.π) + (X @ np.log(self.θ).T + (1 - X) @ np.log(1 - self.θ).T) # log likelihood
             logp -= logp.max(axis=1, keepdims=True) # reduce logits for numerical stability (invariance property)
             p     = np.exp(logp)
             p    /= p.sum(axis=1, keepdims=True) # normalize
@@ -40,8 +40,8 @@ class BMMGibbs(GibbsModel):
         for i in range(N):           
             for k in range(K):
                 x_obs = X[i][obs_mask[i]]
-                θ_obs = θ[k][obs_mask[i]]
-                log_ps[i,k] = np.log(π[k]) + np.sum(x_obs * np.log(θ_obs)) + np.sum((1 - x_obs) * np.log(1 - θ_obs))
+                θ_obs = self.θ[k][obs_mask[i]]
+                log_ps[i,k] = np.log(self.π[k]) + np.sum(x_obs * np.log(θ_obs)) + np.sum((1 - x_obs) * np.log(1 - θ_obs))
 
         log_norm = logsumexp(log_ps, axis=1, keepdims=True)
 
@@ -51,25 +51,24 @@ class BMMGibbs(GibbsModel):
 
         return p, loglik, log_ps
     
-    def sample_θ(self, X, zs, missing_mask, missing) :
-        N,D=X.shape
-        zs_zerohot = np.eye(self.K)[zs.astype(np.int64)]
+    def sample_θ(self) :
+        zs_zerohot = np.eye(self.K)[self.z.astype(np.int64)]
          
-        if missing: # If there is missing data 
-            obs_mask = ~missing_mask
+        if self.missing: # If there is missing data 
+            obs_mask = ~self.missing_mask
             obs_k = zs_zerohot.T @ obs_mask
             nk = obs_k
-            X_observed = np.nan_to_num(X * obs_mask, nan=0)
+            X_observed = np.nan_to_num(self.X * obs_mask, nan=0)
         else: # if there is not missing data 
             nk = np.sum(zs_zerohot, axis=0)[:,None]
-            X_observed = X
+            X_observed = self.X
 
         nkd1 = zs_zerohot.T @ X_observed
 
         # nkd0 = nk - nkd1
         nkd0 = np.clip(nk - nkd1, 1e-8, None)
 
-        return self.rng.beta(self.a_0 + nkd1, self.b_0 + nkd0)
+        self.θ = self.rng.beta(self.a_0 + nkd1, self.b_0 + nkd0)
     
     def sample_X_missing(self, z, θ, X, missing_mask):
         N, D = X.shape
@@ -84,82 +83,82 @@ class BMMGibbs(GibbsModel):
         return X_sample
     
     def fit(self, X, num_iters=4000, burn=1000):
+        self.X = X
         N,D = X.shape 
 
-        assert np.nanmin(X) >= 0 and np.nanmax(X) <= 1, "X must be binary"
+        assert np.nanmin(self.X) >= 0 and np.nanmax(self.X) <= 1, "X must be binary"
 
-        missing_mask = np.isnan(X)
-        missing = np.any(missing_mask)
+        self.missing_mask = np.isnan(self.X)
+        self.missing = np.any(self.missing_mask)
 
-        z = np.random.randint(0,self.K,size=N)
+        self.z = np.random.randint(0,self.K,size=N)
 
         self.fitted = True
         self.samples = []
 
         for t in range(0,num_iters+burn):
-            π = self.sample_π(z)
+            self.sample_π()
+            self.sample_θ()
 
-            θ = self.sample_θ(X, z, missing_mask, missing)
-
-            ps,loglike,R = self.likelihood(X, θ,π, missing_mask, missing)
+            ps,loglike,R = self.likelihood(self.X, self.missing_mask, self.missing)
             
-            z = self.sampleZ(ps).astype(np.int16)
+            self.sampleZ(ps)
 
             if t > burn:
                 self.samples.append({
-                    'π': π.copy(),
-                    'z': z.copy(),
-                    'θ': θ.copy(),
+                    'π': self.π.copy(),
+                    'z': self.z.copy(),
+                    'θ': self.θ.copy(),
                     'loglike' : loglike,
-                    'posterior' : self.compute_posterior(X, z, θ, π, missing_mask, missing)
+                    'posterior' : self.compute_posterior()
                 })
 
         return self.samples
 
-    def compute_posterior(self, X, zs, θs, πs, missing_mask, missing):
-        N,D = X.shape
+    def compute_posterior(self):
+        N,D = self.X.shape
 
-        obs_mask = ~missing_mask
+        obs_mask = ~self.missing_mask
         
-        comp_prior = dirichlet.logpdf(πs, self.α_0)
-        cat_prior = np.sum(np.log(πs[zs]))
+        comp_prior = dirichlet.logpdf(self.π, self.α_0)
+        cat_prior = np.sum(np.log(self.π[self.z]))
 
         param_prior = 0.0
         for k in range(self.K):
-            param_prior += np.sum(beta.logpdf(θs[k], self.a_0[k], self.b_0[k]))
+            param_prior += np.sum(beta.logpdf(self.θ[k], self.a_0[k], self.b_0[k]))
 
         log_likelihood = 0.0
         for n in range(N):
-            k = zs[n]
-            x = X[n] if not missing else X[n][obs_mask[n]]
-            θ = θs[k] if not missing else θs[k][obs_mask[n]]
+            k = self.z[n]
+            x = self.X[n] if not self.missing else self.X[n][obs_mask[n]]
+            θ = self.θ[k] if not self.missing else self.θ[k][obs_mask[n]]
             log_likelihood += np.sum(x * np.log(θ)) + np.sum((1 - x) * np.log(1 - θ))
 
         return comp_prior + cat_prior + param_prior + log_likelihood
 
 
-    def compute_responsibility(self, X, θs, πs):
+    def compute_responsibility(self, X_new):
         ''' 
             Computes marginalized responsibility matrix for data with or without missing features 
             Used for computing log likelihood for holdout set
         '''
-        N,D = X.shape
-        missing_mask = np.isnan(X)
-        missing = np.isnan(X).any()
+        N,D = X_new.shape
+        missing_mask = np.isnan(X_new)
+        missing = np.isnan(X_new).any()
 
-        return self.likelihood(X,θs,πs,missing_mask,missing)[2]
+        return self.likelihood(X_new,missing_mask,missing)[2]
 
-    def log_likelihood(self, X, θs, πs):
-        N,D = X.shape
+    def log_likelihood(self, X_new):
+        N,D = X_new.shape
 
-        R = self.compute_responsibility(X, θs, πs)
+        R = self.compute_responsibility(X_new)
         log_norm = logsumexp(R, axis=1, keepdims=True)
         loglike = np.sum(log_norm)/N
 
         return loglike
     
-    def predict(self, X, θs, πs):
-        R = self.compute_responsibility(X, θs, πs)
+    def predict(self, X_new):
+        R = self.compute_responsibility(X_new)
         zs = np.argmax(R, axis=1)
         return zs
 
