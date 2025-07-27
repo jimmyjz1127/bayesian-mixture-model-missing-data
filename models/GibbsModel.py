@@ -40,7 +40,7 @@ class GibbsModel(ABC):
             @param (K)   : the number of components
         '''
 
-        z_counts = np.bincount(self.z.astype(np.int64), minlength=self.K)
+        z_counts = np.bincount((self.z).astype(np.int64), minlength=self.K)
         self.π = self.rng.dirichlet(self.α_0 + z_counts)   
 
 
