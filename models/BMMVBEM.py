@@ -86,8 +86,8 @@ class BMMVBEM(VBEMModel):
         kl_total = np.sum(R[:,:,None] * kl_elem * miss[:,None,:])
         return kl_total
     
-    def elbo_X_obs(self, X, R, a, b):
-        obs = ~np.isnan(X)
+    def elbo_X_obs(self, X, R, a, b, missing_mask):
+        obs = ~missing_mask
         X_obs  = np.where(obs, X, 0.0)
         Xc_obs = np.where(obs, 1.0 - X, 0.0)
 
@@ -108,7 +108,7 @@ class BMMVBEM(VBEMModel):
             self.kl_pi(α) + 
             self.kl_mu(a,b) + 
             self.kl_z(R,α) + 
-            self.elbo_X_obs(X, R, a, b) -
+            self.elbo_X_obs(X, R, a, b, missing_mask) -
             self.kl_XH(missing_mask,R,tau,a,b)
         )
 

@@ -22,7 +22,7 @@ from models.VBEMModel import VBEMModel
 
 class GMMVBEM(VBEMModel):
     
-    def __init__(self, priorParameters : GMMPriorParameters):
+    def __init__(self, priorParameters : GMMPriorParameters, X : np.array):
         """
             Parameters 
         """

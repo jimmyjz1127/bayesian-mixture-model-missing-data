@@ -2,30 +2,25 @@ import numpy as np
 import pandas as pd
 
 class Dataset:
-    def __init__(self, X,y, missing_rate=0.1, missing_type="uniform",seed=5099):
+    def __init__(self, X,y, missing_rate=0.1, seed=5099):
         self.X_full       = X
         self.y            = y
-        self.missing_rate = missing_rate
         self.seed         = seed
-        self.mask_type    = missing_type
 
-        self._apply_missingness(X)
-
-    def _apply_missingness(self, X):
         rng = np.random.default_rng(self.seed)
+
+    def apply_missingness(self, X, missing_rate, missing_type="uniform"):
         mask = np.ones_like(X, dtype=bool)
 
-        if self.mask_type == "uniform":
-            mask = rng.random(X.shape) > self.missing_rate
-        # elif self.mast_type == "half_upper":
-        #     mask = np.arrange(X.shape[0])
+        if missing_type == "uniform":
+            mask = self.rng.random(X.shape) > missing_rate
 
         X_missing = X.copy()
         X_missing[~mask] = np.nan
-        return X_missing, mask
+        return X_missing,self.y
     
-    def get_data(self):
-        return self.X_missing, self.mask
+    def get_missing_data(self):
+        return self.X_missing
 
     def get_complete_data(self):
         return self.X_full
