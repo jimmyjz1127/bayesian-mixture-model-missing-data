@@ -10,8 +10,9 @@ import numpy as np
 import random 
 
 from models.PriorParameters import GMMPriorParameters 
+from models.GibbsModel import GibbsModel
 
-class GMMGibbs:
+class GMMGibbs(GibbsModel):
     """
         Implementation of Gaussian Mixture Model with missing data using Gibbs Sampling Inference 
     """
@@ -20,17 +21,12 @@ class GMMGibbs:
         """
             Parameters 
         """
+        super().__init__(priorParameters)
 
-        self.K   = priorParameters.K
-        self.α_0 = priorParameters.α_0
         self.m_0 =  priorParameters.m_0
         self.S_0 = priorParameters.S_0
         self.k_0 = priorParameters.k_0
         self.ν_0 = priorParameters.ν_0
-
-        self.rng = np.random.default_rng(5099)
-
-        self.fitted = False
 
     def likelihood(self, X, μ, Σ, π):
         N,D = X.shape
@@ -43,23 +39,11 @@ class GMMGibbs:
 
         log_norm = logsumexp(logp,axis=1,keepdims=True)
 
-        p = np.exp(logp - log_norm)
-
         loglik = np.sum(log_norm)/N
 
+        p = np.exp(logp - log_norm)
+
         return p,loglik
-    
-    def sampleZ(self, p):
-        ''' 
-            Samples cluster assignments z for n datapoints 
-
-            @param (p) : softmax categorical probabilities over clusters (N, K)
-        '''
-
-        # Inverse sample from categorical distribution
-        cdf = np.cumsum(p, axis=1) # compute CDF for each row (each categorical distribution)
-        u   = self.rng.random(size=(p.shape[0], 1))
-        return (cdf > u).argmax(axis=1)  # return first index where cdf is greater than random u   
     
     def sampleX(self, X, zs, μs, Σs, missing_mask):
         N, D = X.shape
@@ -83,6 +67,8 @@ class GMMGibbs:
             m_i = μ_h + Σ_ho @ np.linalg.inv(Σ_oo) @ (X[i,obs_mask] - μ_o)
             V_i = Σ_hh - Σ_ho @ np.linalg.inv(Σ_oo) @ Σ_oh
 
+            # V_i += 1e-6 * np.eye(V_i.shape[0])
+
             X_sample[i,miss_mask] = np.random.multivariate_normal(m_i,V_i)
 
         return X_sample
@@ -101,7 +87,7 @@ class GMMGibbs:
 
         for k in range(self.K):
             indices = (zs == k)
-            n_k = np.sum(indices)
+            n_k = np.sum(indices) 
             k_n = self.k_0[k] + n_k
 
             X_k = X[indices]
@@ -110,41 +96,32 @@ class GMMGibbs:
             S_n = self.S_0[k] + S + ((self.k_0[k] * n_k)/(k_n)) * (diff @ diff.T)
             Σs[k] = invwishart.rvs(df=self.ν_0[k] + n_k, scale=S_n)
 
-
             μ_n = (self.k_0[k] * self.m_0[k] + n_k * x_bar[k])/k_n
             μs[k] = np.random.multivariate_normal(mean=μ_n, cov=Σs[k]/k_n)
             
         return Σs,μs
     
-    def sample_π(self, z):
-        ''' 
-            Samples mixing weights from Dirichlet distribution parameterized by pseudocounts of components
-            
-            @param (zs)  : cluster assignments (n)
-            @param (α_0) : Dirichlet prior list (K)
-            @param (K)   : the number of components
-        '''
-
-        z_counts = np.bincount(z.astype(np.int64), minlength=self.K)
-        return self.rng.dirichlet(self.α_0 + z_counts)
-    
-    def mean_impute(X,missing_mask):
+    # @staticmethod
+    def mean_impute(self, X, missing_mask):
         X_0 = X.copy()
         means = np.nanmean(np.where(missing_mask, np.nan, X), axis=0)
         X_0[missing_mask] = np.take(means, np.where(missing_mask)[1])
         return X_0
 
     def fit(self, X, num_iters=4000, burn=1000):
+        """ 
+            Main Gibbs Sampling Loop
+        """
         N,D = X.shape
         missing_mask = np.isnan(X)
-        missing = np.isnan(missing_mask).any()
+        missing = np.any(missing_mask)
 
         self.fitted = True
         self.samples = []
 
         π = self.rng.dirichlet(self.α_0)
         z = np.random.randint(0,self.K,size=N)
-        x = X if not missing else self.mean_impute(X,missing_mask)
+        x = X.copy() if not missing else self.mean_impute(X,missing_mask)
         Σ,μ = self.sample_NIW(x,z)
 
         for t in range(0, num_iters + burn):
@@ -155,7 +132,7 @@ class GMMGibbs:
 
             Σ,μ = self.sample_NIW(x,z)
 
-            p, loglike = self.likelihood(X,μ,Σ,π)
+            p, loglike = self.likelihood(x,μ,Σ,π)
             
             z = self.sampleZ(p)
 
@@ -174,13 +151,12 @@ class GMMGibbs:
     
     def compute_posterior(self, X, zs, μs, Σs, πs):
         N,D = X.shape
-        K,_ = μs.shape
 
         comp_prior = dirichlet.logpdf(πs, self.α_0)
         cat_prior = np.sum(np.log(πs[zs]))
 
         param_prior = 0.0
-        for k in range(K):
+        for k in range(self.K):
             μ = μs[k]
             Σ = Σs[k]
 
@@ -211,7 +187,7 @@ class GMMGibbs:
 
         logprobs = np.zeros((N,self.K))
 
-        for k in range(K):
+        for k in range(self.K):
             μ = μs[k]
             Σ = Σs[k]
             π = πs[k]
@@ -228,11 +204,18 @@ class GMMGibbs:
                 μ_o  = μ[obs_mask]
                 Σ_oo = Σ[obs_mask][:, obs_mask]
 
-                logprobs[i,k] = np.log(π) + multivariate_normal(x_o, mean=μ_o, cov=Σ_oo)
+                logprobs[i,k] = np.log(π) + multivariate_normal.logpdf(x_o, mean=μ_o, cov=Σ_oo)
 
         return logprobs
     
-    def loglikelihood(self, X, μs, Σs, πs):
+    def log_likelihood(self, X, μs, Σs, πs):
+        """
+        
+            X  : input data (N, D)
+            μs : component means (K, D)
+            Σs : component covariances (K, D, D)
+            πs : component weights (,K)
+        """
         N,D = X.shape
 
         R = self.compute_responsibility(X, μs, Σs, πs)
@@ -250,40 +233,6 @@ class GMMGibbs:
         zs = np.argmax(R, axis=1)
         return zs
     
-    def get_map_params(self):
-        '''
-            Returns the best Gibb Sample based on MAP 
-        '''
-        if not self.fitted:
-            raise Exception("Model has not been fitted yet.") 
-
-        sample_map = max(self.samples, key=lambda p : p['posterior'])
-        return sample_map
-
-    def get_summarizing_results(self, y):
-        """ 
-            Produces summarizing results : mean of ARI, loglikelihood, posterior likelihood
-            along with standard deviation for each 
-        """
-        if not self.fitted:
-            raise Exception("Model has not been fitted yet.") 
-        
-        avg_ari = 0.0
-        avg_ll = 0.0
-        avg_pl = 0.0
-
-        for sample in self.samples:
-            avg_ll += sample['loglike']
-            avg_pl += sample['posterior']
-            avg_ari += adjusted_rand_score(y,sample['z'])
-
-        N = len(self.samples)
-
-        return {
-            'avg_ari' : avg_ari / N,
-            'avg_ll'  : avg_ll / N,
-            'avg_pl'  : avg_pl / N
-        }
 
         
 
