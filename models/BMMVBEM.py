@@ -17,44 +17,45 @@ class BMMVBEM(VBEMModel):
         self.a_0 = priorParameters.a_0
         self.b_0 = priorParameters.b_0
 
-    def update_Θ(self, X,R,a,b, missing_mask, missing):
-        N,D = X.shape
+    def update_Θ(self):
+        N,D = self.X.shape
 
-        obs_mask = ~missing_mask
+        obs_mask = ~self.missing_mask
 
         a_new = np.zeros((self.K,D))
         b_new = np.zeros((self.K,D))
 
-        exp_x = expit(digamma(a) - digamma(b))
+        exp_x = expit(digamma(self.a) - digamma(self.b))
 
         for k in range(self.K):
 
-            if missing : 
-                x = (exp_x[k] * missing_mask) + np.nan_to_num(X * obs_mask, nan=0)
+            if self.missing : 
+                x = (exp_x[k] * self.missing_mask) + np.nan_to_num(self.X * obs_mask, nan=0)
             else:
-                x = X
+                x = self.X
 
-            a_new[k,:] = self.a_0[k,:] + (R[:,k].T @ x)
-            b_new[k,:] = self.b_0[k,:] + (R[:,k].T @ (1 - x))
+            a_new[k,:] = self.a_0[k,:] + (self.R[:,k].T @ x)
+            b_new[k,:] = self.b_0[k,:] + (self.R[:,k].T @ (1 - x))
 
-        return a_new,b_new
+        self.a = a_new
+        self.b = b_new
     
-    def logprob(self, X, a, b):
+    def logprob(self):
         """
             Computes (marginalized) data log probability of observed data
         """
-        psi_ab = digamma(a + b)
-        elog_mu   = digamma(a) - psi_ab      
-        elog_1mu  = digamma(b) - psi_ab     
+        psi_ab = digamma(self.a + self.b)
+        elog_mu   = digamma(self.a) - psi_ab      
+        elog_1mu  = digamma(self.b) - psi_ab     
 
-        obs = ~np.isnan(X)
-        X_obs   = np.where(obs, X, 0.0)       
-        Xc_obs  = np.where(obs, 1.0 - X, 0.0) 
+        obs = ~np.isnan(self.X)
+        X_obs   = np.where(obs, self.X, 0.0)       
+        Xc_obs  = np.where(obs, 1.0 - self.X, 0.0) 
 
-        hat_x = expit(digamma(a) - digamma(b))
+        self.x_hat = expit(digamma(self.a) - digamma(self.b))
 
         # (N,D) @ (D,K) -> (N,K)
-        return X_obs @ elog_mu.T + Xc_obs @ elog_1mu.T, hat_x
+        return X_obs @ elog_mu.T + Xc_obs @ elog_1mu.T
     
     '''
         ############## ELBO ##############
@@ -97,19 +98,19 @@ class BMMVBEM(VBEMModel):
         ll = X_obs @ Elog_mu.T + Xc_obs @ Elog_1mu.T  # (N,K)
         return np.sum(R * ll)
     
-    def compute_elbo(self,X,R,a,b,α,hat_x, missing_mask):
-        N,K = R.shape
+    def compute_elbo(self):
+        N,K = self.R.shape
 
-        tau = np.where(missing_mask[:, None, :],     # (N,1,D)
-                    hat_x[None, :, :],       # (1,K,D)
-                    X[:, None, :])    
+        tau = np.where(self.missing_mask[:, None, :],     # (N,1,D)
+                    self.x_hat[None, :, :],       # (1,K,D)
+                    self.X[:, None, :])    
 
         elbo = (
-            self.kl_pi(α) + 
-            self.kl_mu(a,b) + 
-            self.kl_z(R,α) + 
-            self.elbo_X_obs(X, R, a, b, missing_mask) -
-            self.kl_XH(missing_mask,R,tau,a,b)
+            self.kl_pi(self.α) + 
+            self.kl_mu(self.a,self.b) + 
+            self.kl_z(self.R,self.α) + 
+            self.elbo_X_obs(self.X, self.R, self.a, self.b, self.missing_mask) -
+            self.kl_XH(self.missing_mask,self.R,tau,self.a,self.b)
         )
 
         return elbo
@@ -125,49 +126,45 @@ class BMMVBEM(VBEMModel):
                 K       : number of components (K)
                 mode : 0 update pi as RV, 1 to update MLE style
         '''
+        self.X = X
+        self.mode = mode
+        self.fitted = True
+        self.missing_mask = np.isnan(self.X)
+        self.missing = np.any(self.missing_mask)
 
-        N,D = X.shape
+        N,D = self.X.shape
         K= self.K
 
-        self.fitted = True
-
-        missing_mask = np.isnan(X)
-        missing = np.any(missing_mask)
-
-        a = self.a_0.copy() + np.random.gamma(1.0, 0.1, size=(K, D))
-        b = self.b_0.copy() + np.random.gamma(1.0, 0.1, size=(K, D))
-        α = self.α_0.copy()
-        πs = np.random.dirichlet(alpha=α)
+        self.a = self.a_0.copy() + np.random.gamma(1.0, 0.1, size=(K, D))
+        self.b = self.b_0.copy() + np.random.gamma(1.0, 0.1, size=(K, D))
+        self.α = self.α_0.copy()
+        self.π = np.random.dirichlet(alpha=self.α)
 
         loglikes = []
         elbos = []
 
         for t in range(max_iters):
-            logprob, x_hat = self.logprob(X,a,b)
-
-            R,loglike =self.update_z(X,logprob,α,πs,mode=mode)
-
-            α = self.update_π(R)
-            a,b = self.update_Θ(X,R,a,b,missing_mask, missing)
+            logprob = self.logprob()
+            loglike =self.update_z(logprob)
+            self.update_π()
+            self.update_Θ()
+            elbo = self.compute_elbo()
 
             loglikes.append(loglike)
-
-            elbo = self.compute_elbo(X,R,a,b,α,x_hat, missing_mask)
-
             elbos.append(elbo)
 
             if t > 1 and np.abs(elbos[t] - elbos[t-1]) < tol:
                 break
 
-        z = np.argmax(R, axis=1)
+        self.z = np.argmax(self.R, axis=1)
 
         self.result = {
-            'R'            : R,             # Responsibility matrix  (N,K)
-            'z'            : z,             # Cluster assignments    (N)
-            'α'            : α,             # dirichlet prior        (K)
-            'a'            : a,             # Beta a parameter       (K)
-            'b'            : b,             # Beta b parameter       (K)
-            'x_hat'        : x_hat,         # sufficent stats x      (K,D)
+            'R'            : self.R,             # Responsibility matrix  (N,K)
+            'z'            : self.z,             # Cluster assignments    (N)
+            'α'            : self.α,             # dirichlet prior        (K)
+            'a'            : self.a,             # Beta a parameter       (K)
+            'b'            : self.b,             # Beta b parameter       (K)
+            'x_hat'        : self.x_hat,         # sufficent stats x      (K,D)
             'loglikes'     : loglikes,      # log likelihoods
             'elbos'        : elbos          # elbos 
         }
