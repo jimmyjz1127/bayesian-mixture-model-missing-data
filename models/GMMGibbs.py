@@ -148,6 +148,7 @@ class GMMGibbs(GibbsModel):
                     'loglike': loglike,
                     'posterior': self.compute_posterior(x)
                 })
+        self.relabel_all_samples()
 
         return self.samples
     
@@ -178,7 +179,7 @@ class GMMGibbs(GibbsModel):
 
         return posterior_prob
     
-    def compute_responsibility(self, X):
+    def compute_responsibility(self, X,  μs, Σs, πs):
         ''' 
             Computes marginalized responsibility matrix for data with or without missing features 
             Used for computing log likelihood for holdout set
@@ -190,9 +191,9 @@ class GMMGibbs(GibbsModel):
         logprobs = np.zeros((N,self.K))
 
         for k in range(self.K):
-            μ = self.μ[k]
-            Σ = self.Σ[k]
-            π = self.π[k]
+            μ = μs[k]
+            Σ = Σs[k]
+            π = πs[k]
 
             if (not missing) : 
                 logprobs[:,k] = np.log(π) + multivariate_normal.logpdf(X, mean=μ, cov=Σ)
@@ -210,7 +211,7 @@ class GMMGibbs(GibbsModel):
 
         return logprobs
     
-    def log_likelihood(self, X):
+    def log_likelihood(self, X, μ, Σ, π):
         """
         
             X  : input data (N, D)
@@ -220,18 +221,18 @@ class GMMGibbs(GibbsModel):
         """
         N,D = X.shape
 
-        R = self.compute_responsibility(X, self.μ, self.Σ, self.π)
+        R = self.compute_responsibility(X, μ, Σ, π)
         log_norm = logsumexp(R, axis=1, keepdims=True)
         loglike = np.sum(log_norm)/N
 
         return loglike
     
-    def predict(self, X):
+    def predict(self, X, μ, Σ, π):
         """
             For making clustering predictions on a holdout set (test set)
         """ 
 
-        R = self.compute_responsibility(X, self.μ, self.Σ, self.π)
+        R = self.compute_responsibility(X, μ, Σ, π)
         zs = np.argmax(R, axis=1)
         return zs
     

@@ -121,6 +121,7 @@ class BMMGibbs(GibbsModel):
                     'loglike' : loglike,
                     'posterior' : self.compute_posterior()
                 })
+        self.relabel_all_samples()
 
         return self.samples
 

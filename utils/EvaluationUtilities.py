@@ -19,3 +19,5 @@ def multi_restart(model, X, y, N=10, max_iters=200, tol=1e-3):
 
 def rmse(A,B):
     return np.sqrt(mean_squared_error(A,B))
+
+# def evalaute_increasing_missingness(dataset, EMModel, VBEMModel, GibbsModel)

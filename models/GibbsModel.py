@@ -3,6 +3,8 @@ import numpy as np
 from sklearn.metrics import adjusted_rand_score
 from scipy.optimize import linear_sum_assignment
 import random 
+import copy
+from scipy.stats import mode
 
 class GibbsModel(ABC):
     def __init__(self, prior):
@@ -124,3 +126,72 @@ class GibbsModel(ABC):
                 X_imputed[i, mask] = np.random.multivariate_normal(μ_cond, Σ_cond)
 
         return X_imputed
+    
+    def hungarian_permutation(self, z_ref, z_new, K):
+        cost_matrix = np.zeros((K, K))
+        for i in range(K):
+            for j in range(K):
+                cost_matrix[i, j] = -np.sum((z_new == i) & (z_ref == j))
+        row_ind, col_ind = linear_sum_assignment(cost_matrix)
+        perm = col_ind[np.argsort(row_ind)]
+        return perm
+
+    def relabel_sample(self, sample, perm):
+        sample = copy.deepcopy(sample)
+        
+        # Relabel cluster assignments
+        sample['z'] = np.array([perm[label] for label in sample['z']])
+        
+        # Relabel all other keys if the first dimension matches K
+        K = len(perm)
+        for key, value in sample.items():
+            if key == 'z':
+                continue
+            if isinstance(value, np.ndarray) and value.shape[0] == K:
+                sample[key] = value[perm]
+        
+        return sample
+
+    def relabel_all_samples(self):
+        if not self.fitted:
+            raise Exception("Model has not been fitted yet.") 
+
+        self.z_ref = mode([s['z'] for s in self.samples], axis=0).mode[0]
+
+        self.aligned_samples = []
+        for t, sample in enumerate(self.samples):
+            # Compute permutation to align current sample's z to reference
+            perm = self.hungarian_permutation(self.z_ref, sample['z'], self.K)
+            aligned_sample = self.relabel_sample(sample, perm)
+            self.aligned_samples.append(aligned_sample)
+
+    def get_aligned_param_means(self):
+        if not self.fitted:
+            raise Exception("Model has not been fitted yet.")
+        
+        if self.model_type == "bernoulli":
+            θ = np.mean([s['θ'] for s in self.aligned_samples])
+            π = np.mean([s['π'] for s in self.aligned_samples])
+            return {
+                "θ" : θ,
+                'π' : π,
+                'z' : self.z_ref,
+                'loglikes' : self.samples['loglikes'],
+                'posterior' : self.samples['posterior']
+            }
+        else:
+            μ = np.mean([s['μ'] for s in self.aligned_samples])
+            Σ = np.mean([s['Σ'] for s in self.aligned_samples])
+            π = np.mean([s['π'] for s in self.aligned_samples])
+            x = np.mean([s['x'] for s in self.aligned_samples])
+            return {
+                'μ': μ,
+                'Σ': Σ,
+                'π' : π,
+                'z' : self.z_ref,
+                'x' : x,
+                'loglikes' : self.samples['loglikes'],
+                'posterior' : self.samples['posterior']
+            }
+
+    
