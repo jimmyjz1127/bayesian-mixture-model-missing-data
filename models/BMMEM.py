@@ -80,7 +80,7 @@ class BMMEM:
 
         return self.z,self.π,self.θ,loglikes
     
-    def posterior_predictive(self, X_new):
+    def posterior_predict(self, X_new, eps=1e-14):
         """
             Parameters:
                 X_new : (N,D) array with missing values (np.nan)
@@ -89,18 +89,27 @@ class BMMEM:
 
         """
         N, D = X_new.shape
+
+        if not self.fitted: 
+            raise Exception("Model has not been fitted yet.")
+        if X_new.shape != self.X.shape:
+            raise Exception("Dimensions do not match fit.")
+
         missing_mask = np.isnan(X_new)
-        eps = 1e-14
+        missing = np.any(missing_mask)
 
         R = np.zeros((N, self.K))
 
-        for i in range(N):
-            for k in range(self.K):
-                mask = ~missing_mask[i]
-                logp = np.log(self.π[k] + eps)
-                logp += np.sum((X_new[i] * np.log(self.θ[k] + eps))[mask])
-                logp += np.sum(((1 - X_new[i]) * np.log(1 - self.θ[k] + eps))[mask])
-                R[i, k] = logp
+        if not missing : 
+            R = np.log(self.π + eps) + (X_new @ np.log(self.θ + eps).T + (1 - X_new) @ np.log(1 - self.θ + eps).T)
+        else:
+            for i in range(N):
+                for k in range(self.K):
+                    mask = ~missing_mask[i]
+                    logp = np.log(self.π[k] + eps)
+                    logp += np.sum((X_new[i] * np.log(self.θ[k] + eps))[mask])
+                    logp += np.sum(((1 - X_new[i]) * np.log(1 - self.θ[k] + eps))[mask])
+                    R[i, k] = logp
 
         log_norm = logsumexp(R, axis=1, keepdims=True)
         R = np.exp(R - log_norm)
