@@ -26,6 +26,7 @@ class GMMEM:
                 for k in range(K):
                     μ_o = self.μ[k][obs_mask]
                     Σ_oo = self.Σ[k][np.ix_(obs_mask, obs_mask)]
+                    Σ_oo = 0.5 * (Σ_oo + Σ_oo.T)
 
                     self.R[i,k] = np.log(self.π[k] + eps) + multivariate_normal.logpdf(self.X[i,obs_mask],μ_o,Σ_oo,allow_singular=True)
 
@@ -118,43 +119,40 @@ class GMMEM:
             'loglikes' :loglikes
         } 
     
-    def posterior_predict(self, X_new, eps=1e-14):
+    def compute_responsibility(self, X_new, eps=1e-14):
         N,D = X_new.shape
         K = self.K
 
         missing_mask = np.isnan(X_new)
-
-        if not self.fitted: 
-            raise Exception("Model has not been fitted yet.")
-        if X_new.shape != self.X.shape:
-            raise Exception("Dimensions do not match fit.")
-        if not np.any(missing_mask):
-            return X_new
+        missing = np.any(missing_mask)
 
         cond_means = np.array([[None]*K for _ in range(N)])
         cond_covs = np.array([[None]*K for _ in range(N)])
-        
         R = np.zeros((N,K))
 
-        for i in range(N):
-            miss_mask = missing_mask[i]
-            obs_mask = ~miss_mask
-
+        if not missing:
             for k in range(K):
-                μ_h = self.μ[k][miss_mask]
-                μ_o = self.μ[k][obs_mask]
-                Σ_oh = self.Σ[k][np.ix_(obs_mask, miss_mask)]
-                Σ_ho = self.Σ[k][np.ix_(miss_mask, obs_mask)]
-                Σ_oo = self.Σ[k][np.ix_(obs_mask, obs_mask)]
-                Σ_hh = self.Σ[k][np.ix_(miss_mask, miss_mask)]
+                R[:,k] = np.log(self.π[k] + eps) + multivariate_normal(X_new, self.μ[k], self.Σ[k])
+        else:
+            for i in range(N):
+                miss_mask = missing_mask[i]
+                obs_mask = ~miss_mask
 
-                m_i = μ_h + Σ_ho @ np.linalg.inv(Σ_oo) @ (X_new[i,obs_mask] - μ_o)
-                V_i = Σ_hh - Σ_ho @ np.linalg.inv(Σ_oo) @ Σ_oh
-                
-                cond_means[i,k] = m_i
-                cond_covs[i,k] = V_i
+                for k in range(K):
+                    μ_h = self.μ[k][miss_mask]
+                    μ_o = self.μ[k][obs_mask]
+                    Σ_oh = self.Σ[k][np.ix_(obs_mask, miss_mask)]
+                    Σ_ho = self.Σ[k][np.ix_(miss_mask, obs_mask)]
+                    Σ_oo = self.Σ[k][np.ix_(obs_mask, obs_mask)]
+                    Σ_hh = self.Σ[k][np.ix_(miss_mask, miss_mask)]
 
-                R[i,k] = np.log(self.π[k] + eps) + multivariate_normal.logpdf(X_new[i,obs_mask],μ_o,Σ_oo,allow_singular=True)
+                    m_i = μ_h + Σ_ho @ np.linalg.inv(Σ_oo) @ (X_new[i,obs_mask] - μ_o)
+                    V_i = Σ_hh - Σ_ho @ np.linalg.inv(Σ_oo) @ Σ_oh
+                    
+                    cond_means[i,k] = m_i
+                    cond_covs[i,k] = V_i
+
+                    R[i,k] = np.log(self.π[k] + eps) + multivariate_normal.logpdf(X_new[i,obs_mask],μ_o,Σ_oo,allow_singular=True)
 
         log_norm = logsumexp(R, axis=1, keepdims=True)
         R = np.exp(R - log_norm)
@@ -165,20 +163,19 @@ class GMMEM:
         ''' 
             Imputes missing entries using expectation 
         '''
-
         N,D = X_new.shape
         K = self.K
 
         missing_mask = np.isnan(X_new)
 
+        if not np.any(missing_mask):
+            return X_new
         if not self.fitted: 
             raise Exception("Model has not been fitted yet.")
         if X_new.shape != self.X.shape:
             raise Exception("Dimensions do not match fit.")
-        if not np.any(missing_mask):
-            return X_new
 
-        R, cond_means, cond_covs = self.posterior_predict(X_new)
+        R, cond_means, cond_covs = self.compute_responsibility(X_new)
 
         X_filled = X_new.copy()
         for i in range(N):
@@ -188,40 +185,9 @@ class GMMEM:
         return X_filled
         
     
-    def posterior_predict_sample(self,X_new,num_samples=1,eps=1e-14):
-        ''' 
-            Imputes using hierarchical sampling
-        '''
-
-        N,D = X_new.shape
-        K = self.K
-
-        missing_mask = np.isnan(X_new)
-
-        if not self.fitted: 
-            raise Exception("Model has not been fitted yet.")
-        if X_new.shape != self.X.shape:
-            raise Exception("Dimensions do not match fit.")
-        if not np.any(missing_mask):
-            return X_new
-
-        R, cond_means, cond_covs = self.posterior_predict(X_new)
-
-        imputed_Xs = []
-
-        for n in range(num_samples):
-            cdf = np.cumsum(R, axis=1) # compute CDF for each row (each categorical distribution)
-            u   = self.rng.random(size=(R.shape[0], 1))
-            z = (cdf > u).argmax(axis=1)
-
-            X_filled = X_new.copy()
-            for i in range(N):
-                k = z[i]
-                X_filled[i,missing_mask[i]] = self.rng.multivariate_normal(mean=cond_means[i,k], cov=cond_covs[i,k])
-
-            imputed_Xs.append(X_filled.copy())
-
-        return np.mean(imputed_Xs, axis=0)
+    def predict(self, X_new):
+        R, _, _ = self.compute_responsibility(X_new)
+        return np.argmax(R, axis=1)
 
 
 

@@ -61,7 +61,7 @@ class BMMEM:
         self.missing_mask = np.isnan(self.X)
         self.missing = np.any(self.missing_mask)
 
-        self.R = np.random.dirichlet(alpha=np.full(K, 1/K), size=N)
+        self.R = np.random.dirichlet(alpha=np.full(K, 1), size=N)
         self.θ = np.random.uniform(0,1,size=(K,D))
 
         loglikes = []
@@ -80,20 +80,12 @@ class BMMEM:
 
         return self.z,self.π,self.θ,loglikes
     
-    def posterior_predict(self, X_new, eps=1e-14):
+    def compute_responsibility(self, X_new, eps=1e-14):
         """
             Parameters:
                 X_new : (N,D) array with missing values (np.nan)
-                θ     : (K,D) learned Bernoulli means
-                π     : (K,)  learned mixing weights
-
         """
         N, D = X_new.shape
-
-        if not self.fitted: 
-            raise Exception("Model has not been fitted yet.")
-        if X_new.shape != self.X.shape:
-            raise Exception("Dimensions do not match fit.")
 
         missing_mask = np.isnan(X_new)
         missing = np.any(missing_mask)
@@ -114,6 +106,21 @@ class BMMEM:
         log_norm = logsumexp(R, axis=1, keepdims=True)
         R = np.exp(R - log_norm)
 
+        return R
+    
+    def posterior_predict_impute(self, X_new, eps=1e-14):
+        N,D = X_new.shape
+        missing_mask = np.isnan(X_new)
+
+        if not self.fitted: 
+            raise Exception("Model has not been fitted yet.")
+        if X_new.shape != self.X.shape:
+            raise Exception("Dimensions do not match fit.")
+        if not np.any(missing_mask):
+            return X_new
+
+        R = self.compute_responsibility(X_new)
+
         X_filled = X_new.copy()
         for i in range(N):
             for d in range(D):
@@ -121,3 +128,9 @@ class BMMEM:
                     X_filled[i, d] = np.sum(R[i] * self.θ[:, d])
 
         return X_filled
+    
+    def predict(self, X_new):
+        R = self.compute_responsibility(X_new)
+        return np.argmax(R, axis=1)
+
+

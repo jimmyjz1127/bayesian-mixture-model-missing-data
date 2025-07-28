@@ -27,6 +27,7 @@ class GMMGibbs(GibbsModel):
         self.S_0 = priorParameters.S_0
         self.k_0 = priorParameters.k_0
         self.ν_0 = priorParameters.ν_0
+        self.model_type = "gaussian"
 
     def likelihood(self, X):
         N,D = X.shape

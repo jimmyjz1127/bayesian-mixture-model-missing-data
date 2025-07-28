@@ -75,3 +75,52 @@ class GibbsModel(ABC):
             'avg_ll'  : avg_ll / N,
             'avg_pl'  : avg_pl / N
         }
+    
+    def posterior_predictive(self, X_new, sample):
+        N, D = X_new.shape
+        K = self.K
+        missing_mask = np.isnan(X_new)
+
+        if not self.fitted:
+            raise Exception("Model has not been fitted yet.")
+        if X_new.shape != self.X.shape:
+            raise Exception("Dimensions do not match fit.")
+        if not np.any(missing_mask):
+            return X_new
+
+        
+        π = sample['π'] 
+        X_imputed = X_new.copy()
+
+        for i in range(N):
+            mask = missing_mask[i]
+            obs_mask = ~mask
+
+            # Sample cluster assignment
+            z = np.random.choice(K, p=π)
+
+            # For BMM:
+            if self.model_type == 'bernoulli':
+                θ = sample['θ']
+                probs = θ[z]
+                X_imputed[i, mask] = np.random.binomial(1, probs[mask])
+
+            # For GMM:
+            elif self.model_type == 'gaussian':
+                μ = sample['μ'][z]
+                Σ = sample['Σ'][z]
+
+                μ_o = μ[obs_mask]
+                μ_m = μ[mask]
+                Σ_oo = Σ[np.ix_(obs_mask, obs_mask)]
+                Σ_om = Σ[np.ix_(obs_mask, mask)]
+                Σ_mo = Σ[np.ix_(mask, obs_mask)]
+                Σ_mm = Σ[np.ix_(mask, mask)]
+
+                x_obs = X_new[i, obs_mask]
+                μ_cond = μ_m + Σ_mo @ np.linalg.inv(Σ_oo) @ (x_obs - μ_o)
+                Σ_cond = Σ_mm - Σ_mo @ np.linalg.inv(Σ_oo) @ Σ_om
+
+                X_imputed[i, mask] = np.random.multivariate_normal(μ_cond, Σ_cond)
+
+        return X_imputed

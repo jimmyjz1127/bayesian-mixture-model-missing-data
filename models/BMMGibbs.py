@@ -23,12 +23,11 @@ class BMMGibbs(GibbsModel):
 
         self.a_0 = priorParameters.a_0
         self.b_0 = priorParameters.b_0
+        self.model_type = "bernoulli"
 
-    def likelihood(self,X,missing_mask,missing):
-        N,D = X.shape
-        K,_ = self.θ.shape 
-        log_ps = np.zeros((N,K))
-        obs_mask = ~missing_mask
+    def likelihood(self,X,missing_mask,missing, eps=0):
+        N, D = X.shape
+        self.K, _ = self.θ.shape
 
         if not missing:
             logp  = np.log(self.π) + (X @ np.log(self.θ).T + (1 - X) @ np.log(1 - self.θ).T) # log likelihood
@@ -36,20 +35,30 @@ class BMMGibbs(GibbsModel):
             p     = np.exp(logp)
             p    /= p.sum(axis=1, keepdims=True) # normalize
             return p, np.sum(logp)/N, logp
-    
-        for i in range(N):           
-            for k in range(K):
-                x_obs = X[i][obs_mask[i]]
-                θ_obs = self.θ[k][obs_mask[i]]
-                log_ps[i,k] = np.log(self.π[k]) + np.sum(x_obs * np.log(θ_obs)) + np.sum((1 - x_obs) * np.log(1 - θ_obs))
 
+        logθ = np.log(np.clip(self.θ,  eps, 1 - eps)) # (K, D)
+        log1mθ = np.log(np.clip(1 - self.θ, eps, 1 - eps)) # (K, D)
+
+        obs_mask = ~missing_mask # (N, D)  
+        X_filled = np.nan_to_num(X, nan=0.0) 
+
+        X_exp = X_filled[:, None, :] # (N, 1, D)
+        obs_exp = obs_mask.astype(float)[:,None,:] # (N, 1, D)
+        logθ_exp = logθ[None, :, :]  # (1, K, D)
+        log1mθ_exp = log1mθ[None, :, :] # (1, K, D)
+
+        log_px = np.sum(
+                        obs_exp * (X_exp * logθ_exp + 
+                        (1.0 - X_exp) * log1mθ_exp )
+                ,axis=2) # (N, K)
+
+        log_ps = log_px + np.log(self.π)[None, :] # (N, K)
         log_norm = logsumexp(log_ps, axis=1, keepdims=True)
-
         loglik = np.sum(log_norm)/N
-
         p = np.exp(log_ps - log_norm)
 
         return p, loglik, log_ps
+
     
     def sample_θ(self) :
         zs_zerohot = np.eye(self.K)[self.z.astype(np.int64)]
