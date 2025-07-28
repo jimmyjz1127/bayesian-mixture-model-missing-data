@@ -108,7 +108,7 @@ class BMMEM:
 
         return R
     
-    def posterior_predict_impute(self, X_new, eps=1e-14):
+    def posterior_predict(self, X_new, eps=1e-14):
         N,D = X_new.shape
         missing_mask = np.isnan(X_new)
 

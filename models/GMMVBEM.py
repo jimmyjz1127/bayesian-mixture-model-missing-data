@@ -58,17 +58,17 @@ class GMMVBEM(VBEMModel):
         self.m   = np.einsum('kij,kj->ki', self.V, rhs)
 
 
-    def logprob(self):
+    def logprob(self, X, missing_mask):
         N,D = self.X.shape
 
-        self.m_ho = np.array([[None]*self.K for _ in range(N)])
-        self.V_ho = np.array([[None]*self.K for _ in range(N)])
+        m_ho = np.array([[None]*self.K for _ in range(N)])
+        V_ho = np.array([[None]*self.K for _ in range(N)])
         logprobs = np.zeros((N,self.K))
 
         for i in range(N):
-            miss_mask = self.missing_mask[i]
+            miss_mask = missing_mask[i]
             obs_mask = ~miss_mask
-            x_o = self.X[i][obs_mask]
+            x_o = X[i][obs_mask]
 
             for k in range(self.K):
                 m = self.m[k]
@@ -83,8 +83,8 @@ class GMMVBEM(VBEMModel):
 
                 inv_Σ_oo = np.linalg.inv(Σ_oo)
 
-                self.m_ho[i, k] = m_h + Σ_ho @ inv_Σ_oo @ (x_o - m_o)
-                self.V_ho[i, k] = Σ_hh - Σ_ho @ inv_Σ_oo @ Σ_oh
+                m_ho[i, k] = m_h + Σ_ho @ inv_Σ_oo @ (x_o - m_o)
+                V_ho[i, k] = Σ_hh - Σ_ho @ inv_Σ_oo @ Σ_oh
 
                 try:
                     D_o = np.sum(obs_mask)
@@ -93,7 +93,7 @@ class GMMVBEM(VBEMModel):
                 except np.linalg.LinAlgError:
                     logprobs[i, k] = -np.inf  # if singular
 
-        return logprobs
+        return logprobs, m_ho, V_ho
     
     def compute_sufficient_stats(self):
         N,D = self.X.shape
@@ -249,23 +249,14 @@ class GMMVBEM(VBEMModel):
         elbos = []
 
         self.R = np.random.dirichlet(alpha=self.α_0, size=N)  # (N, K)
-
-        # Σs = self.S_0.copy()  # Covariances of q(μ_k)
-        # ms = self.m_0.copy()  # Means of q(μ_k)
-        # α = self.α_0.copy()
-        # ν = self.ν_0.copy()
-        # πs = self.rng.dirichlet(alpha=α)
-        # V = np.zeros((self.K,D,D))
         self.x_hats = np.zeros((self.K, N, D))
         self.x_hats_outer = np.zeros((self.K, N, D, D))
 
         # fill with conditional mean imputation 
         for n in range(N):
-            obs_mask = ~self.missing_mask[n]
             miss_mask = self.missing_mask[n]
             for k in range(self.K):
                 self.x_hat = X[n].copy()
-                # Impute missing dimensions with column-wise mean or 0
                 self.x_hat[miss_mask] = np.nanmean(self.X[:, miss_mask], axis=0)
                 self.x_hats[k, n, :] = self.x_hat
                 self.x_hats_outer[k, n, :, :] = np.outer(self.x_hat, self.x_hat)
@@ -273,14 +264,14 @@ class GMMVBEM(VBEMModel):
 
         for t in range(max_iters):
             self.update_Θ()
-            πs = np.sum(self.R,axis=0)/N
+            self.π = np.sum(self.R,axis=0)/N
             self.update_π()
 
-            logprobs = self.logprob()
+            logprobs,self.m_ho, self.V_ho = self.logprob(self.X, self.missing_mask)
 
             self.compute_sufficient_stats()
 
-            loglike = self.update_z(logprobs)
+            self.R, loglike = self.update_z(logprobs)
 
             elbo = self.compute_elbo()
 
@@ -306,6 +297,35 @@ class GMMVBEM(VBEMModel):
             'elbos'        : elbos          # elbos 
         }
         return self.result
+    
+    def predict(self, X_new):
+        missing_mask = np.isnan(X_new)
+        logprob = self.logprob(X_new,missing_mask)
+        R,_ = self.update_z(logprob)
+
+        return np.argmax(R, axis=1)
+    
+    def posterior_predict(self, X_new, eps=1e-14):
+        N,D = X_new.shape
+        missing_mask = np.isnan(X_new)
+
+        if not self.fitted: 
+            raise Exception("Model has not been fitted yet.")
+        if X_new.shape != self.X.shape:
+            raise Exception("Dimensions do not match fit.")
+        if not np.any(missing_mask):
+            return X_new
+        
+        logprob, m_ho, V_ho = self.logprob(X_new, missing_mask)
+        R,_ = self.update_z(logprob)
+
+        X_filled = X_new.copy()
+        for i in range(N):
+            X_filled[i][missing_mask[i]] = np.sum(R[i] * m_ho[i])
+
+        return X_filled
+
+    
 
     
     

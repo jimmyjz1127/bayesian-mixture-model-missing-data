@@ -27,27 +27,27 @@ class VBEMModel(ABC):
     def update_z(self,dataLogProb):
         N,D = self.X.shape
 
-        self.R = np.zeros((N,self.K))
+        R = np.zeros((N,self.K))
 
         α_sum = psi(np.sum(self.α))
 
         for k in range(self.K):
             logprior = psi(self.α[k]) - α_sum
 
-            self.R[:,k] = dataLogProb[:,k].copy()
+            R[:,k] = dataLogProb[:,k].copy()
 
             if self.mode == 0:
-                self.R[:,k] += logprior
+                R[:,k] += logprior
             elif self.mode == 1:
-                self.R[:,k] += np.log(self.π[k])
+                R[:,k] += np.log(self.π[k])
 
-        log_norm = logsumexp(self.R,axis=1,keepdims=True)
+        log_norm = logsumexp(R,axis=1,keepdims=True)
 
-        self.R = np.exp(self.R - log_norm)
+        R = np.exp(R - log_norm)
 
         loglik = np.sum(log_norm) / N
 
-        return loglik
+        return R, loglik
     
     def update_π(self):
         self.α = self.α_0 + np.sum(self.R, axis=0) 

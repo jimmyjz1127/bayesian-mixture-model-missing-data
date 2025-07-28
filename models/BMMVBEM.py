@@ -28,7 +28,6 @@ class BMMVBEM(VBEMModel):
         exp_x = expit(digamma(self.a) - digamma(self.b))
 
         for k in range(self.K):
-
             if self.missing : 
                 x = (exp_x[k] * self.missing_mask) + np.nan_to_num(self.X * obs_mask, nan=0)
             else:
@@ -40,7 +39,7 @@ class BMMVBEM(VBEMModel):
         self.a = a_new
         self.b = b_new
     
-    def logprob(self):
+    def logprob(self, X, missing_mask):
         """
             Computes (marginalized) data log probability of observed data
         """
@@ -48,9 +47,9 @@ class BMMVBEM(VBEMModel):
         elog_mu   = digamma(self.a) - psi_ab      
         elog_1mu  = digamma(self.b) - psi_ab     
 
-        obs = ~np.isnan(self.X)
-        X_obs   = np.where(obs, self.X, 0.0)       
-        Xc_obs  = np.where(obs, 1.0 - self.X, 0.0) 
+        obs = ~missing_mask
+        X_obs   = np.where(obs, X, 0.0)       
+        Xc_obs  = np.where(obs, 1.0 - X, 0.0) 
 
         self.x_hat = expit(digamma(self.a) - digamma(self.b))
 
@@ -119,7 +118,7 @@ class BMMVBEM(VBEMModel):
         ----------- ELBO ------------
     '''
 
-    def fit(self, X, mode=0, max_iters=200, tol=1e-3):
+    def fit(self, X, mode=0, max_iters=100, tol=1e-3):
         '''
             Parameters 
                 X       : input data matrix (N x D)
@@ -144,8 +143,8 @@ class BMMVBEM(VBEMModel):
         elbos = []
 
         for t in range(max_iters):
-            logprob = self.logprob()
-            loglike =self.update_z(logprob)
+            logprob = self.logprob(self.X, self.missing_mask)
+            self.R, loglike =self.update_z(logprob)
             self.update_π()
             self.update_Θ()
             elbo = self.compute_elbo()
@@ -170,6 +169,38 @@ class BMMVBEM(VBEMModel):
         }
 
         return self.result
+    
+    def predict(self, X_new):
+        missing_mask = np.isnan(X_new)
+        logprob = self.logprob(X_new,missing_mask)
+        R,_ = self.update_z(logprob)
+
+        return np.argmax(R, axis=1)
+    
+    def posterior_predict(self, X_new, eps=1e-14):
+        N,D = X_new.shape
+        missing_mask = np.isnan(X_new)
+
+        if not self.fitted: 
+            raise Exception("Model has not been fitted yet.")
+        if X_new.shape != self.X.shape:
+            raise Exception("Dimensions do not match fit.")
+        if not np.any(missing_mask):
+            return X_new
+        
+        logprob = self.logprob(X_new, self.missing_mask)
+        R,_ = self.update_z(logprob)
+
+        exp_θ =  self.a / (self.a + self.b + eps)
+
+        X_filled = X_new.copy()
+        for i in range(N):
+            for d in range(D):
+                if missing_mask[i, d]:
+
+                    X_filled[i, d] = np.sum(R[i] * exp_θ[:, d])
+
+        return X_filled
 
 
 
