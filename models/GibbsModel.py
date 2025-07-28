@@ -76,7 +76,7 @@ class GibbsModel(ABC):
             'avg_pl'  : avg_pl / N
         }
     
-    def posterior_predictive(self, X_new, sample):
+    def posterior_predict(self, X_new, sample):
         N, D = X_new.shape
         K = self.K
         missing_mask = np.isnan(X_new)

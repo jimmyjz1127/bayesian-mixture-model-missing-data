@@ -159,7 +159,7 @@ class GMMEM:
 
         return R, cond_means, cond_covs
     
-    def posterior_predict_impute(self, X_new, eps=1e-14):
+    def posterior_predict(self, X_new, eps=1e-14):
         ''' 
             Imputes missing entries using expectation 
         '''
