@@ -156,7 +156,10 @@ class GibbsModel(ABC):
         if not self.fitted:
             raise Exception("Model has not been fitted yet.") 
 
-        self.z_ref = mode([s['z'] for s in self.samples], axis=0).mode[0]
+        Z = np.array([s['z'] for s in self.samples])
+        self.z_ref = mode(Z, axis=0).mode.squeeze()
+
+        print(self.z_ref.shape)
 
         self.aligned_samples = []
         for t, sample in enumerate(self.samples):
@@ -170,28 +173,28 @@ class GibbsModel(ABC):
             raise Exception("Model has not been fitted yet.")
         
         if self.model_type == "bernoulli":
-            θ = np.mean([s['θ'] for s in self.aligned_samples])
-            π = np.mean([s['π'] for s in self.aligned_samples])
+            θ = np.mean([s['θ'] for s in self.aligned_samples], axis=0)
+            π = np.mean([s['π'] for s in self.aligned_samples], axis=0)
             return {
                 "θ" : θ,
                 'π' : π,
                 'z' : self.z_ref,
-                'loglikes' : self.samples['loglikes'],
-                'posterior' : self.samples['posterior']
+                # 'loglikes' : self.samples['loglikes'],
+                # 'posterior' : self.samples['posterior']
             }
         else:
-            μ = np.mean([s['μ'] for s in self.aligned_samples])
-            Σ = np.mean([s['Σ'] for s in self.aligned_samples])
-            π = np.mean([s['π'] for s in self.aligned_samples])
-            x = np.mean([s['x'] for s in self.aligned_samples])
+            μ = np.mean([s['μ'] for s in self.aligned_samples], axis=0)
+            Σ = np.mean([s['Σ'] for s in self.aligned_samples], axis=0)
+            π = np.mean([s['π'] for s in self.aligned_samples], axis=0)
+            x = np.mean([s['x'] for s in self.aligned_samples], axis=0)
             return {
                 'μ': μ,
                 'Σ': Σ,
                 'π' : π,
                 'z' : self.z_ref,
                 'x' : x,
-                'loglikes' : self.samples['loglikes'],
-                'posterior' : self.samples['posterior']
+                # 'loglikes' : self.samples['loglikes'],
+                # 'posterior' : self.samples['posterior']
             }
 
     
