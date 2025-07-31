@@ -58,8 +58,10 @@ class BMMEM:
 
         self.missing_mask = np.isnan(self.X)
         self.missing = np.any(self.missing_mask)
-
-        self.R = np.random.dirichlet(alpha=np.full(K, 1), size=N)
+        
+        z = np.random.choice(K, size=N)
+        self.R = np.zeros((N, K))
+        self.R[np.arange(N), z] = 1
         self.θ = np.random.uniform(0.1,0.9,size=(K,D))
 
         loglikes = []

@@ -37,14 +37,14 @@ def eval(name,  model, K):
             'VBEM'          : lambda X_train, X_test: multi_restart(lambda : BMMVBEM(params), X_train, X_test),
             'EM'            : lambda X_train, X_test: multi_restart(lambda :  BMMEM(K), X_train, X_test),
             'EM+mean'       : lambda X_train, X_test: multi_restart(lambda : BMMEM(K), mean_impute(X_train), X_test),
-            'Gibbs+mean'    : lambda X_train, X_test: [get_full_results(BMMGibbs(params), mean_impute(X_train), X_test)],
-            'VBEM+mean'     : lambda X_train, X_test: multi_restart(lambda : BMMVBEM(params), mean_impute(X_train), X_test),
+            # 'Gibbs+mean'    : lambda X_train, X_test: [get_full_results(BMMGibbs(params), mean_impute(X_train), X_test)],
+            # 'VBEM+mean'     : lambda X_train, X_test: multi_restart(lambda : BMMVBEM(params), mean_impute(X_train), X_test),
             'EM+median'     : lambda X_train, X_test: multi_restart(lambda : BMMEM(K), median_impute(X_train), X_test),
-            'Gibbs+median'  : lambda X_train, X_test: [get_full_results(BMMGibbs(params), median_impute(X_train), X_test)],
-            'VBEM+median'   : lambda X_train, X_test: multi_restart(lambda : BMMVBEM(params), median_impute(X_train), X_test),
+            # 'Gibbs+median'  : lambda X_train, X_test: [get_full_results(BMMGibbs(params), median_impute(X_train), X_test)],
+            # 'VBEM+median'   : lambda X_train, X_test: multi_restart(lambda : BMMVBEM(params), median_impute(X_train), X_test),
             'EM+mode'       : lambda X_train, X_test: multi_restart(lambda : BMMEM(K), mode_impute(X_train), X_test),
-            'Gibbs+mode'    : lambda X_train, X_test: [get_full_results(BMMGibbs(params), mode_impute(X_train), X_test)],
-            'VBEM+mode'     : lambda X_train, X_test: multi_restart(lambda : BMMVBEM(params), mode_impute(X_train), X_test),
+            # 'Gibbs+mode'    : lambda X_train, X_test: [get_full_results(BMMGibbs(params), mode_impute(X_train), X_test)],
+            # 'VBEM+mode'     : lambda X_train, X_test: multi_restart(lambda : BMMVBEM(params), mode_impute(X_train), X_test),
         }
 
         metrics_df = run_full_evaluation(
@@ -59,14 +59,14 @@ def eval(name,  model, K):
             'VBEM'          : lambda X_train, X_test: multi_restart(lambda : GMMVBEM(params), X_train, X_test),
             'EM'            : lambda X_train, X_test: multi_restart(lambda :  GMMEM(K), X_train, X_test),
             'EM+mean'       : lambda X_train, X_test: multi_restart(lambda : GMMEM(K), mean_impute(X_train), X_test),
-            'Gibbs+mean'    : lambda X_train, X_test: [get_full_results(GMMGibbs(params), mean_impute(X_train), X_test)],
-            'VBEM+mean'     : lambda X_train, X_test: multi_restart(lambda : GMMVBEM(params), mean_impute(X_train), X_test),
+            # 'Gibbs+mean'    : lambda X_train, X_test: [get_full_results(GMMGibbs(params), mean_impute(X_train), X_test)],
+            # 'VBEM+mean'     : lambda X_train, X_test: multi_restart(lambda : GMMVBEM(params), mean_impute(X_train), X_test),
             'EM+median'     : lambda X_train, X_test: multi_restart(lambda : GMMEM(K), median_impute(X_train), X_test),
-            'Gibbs+median'  : lambda X_train, X_test: [get_full_results(GMMGibbs(params), median_impute(X_train), X_test)],
-            'VBEM+median'   : lambda X_train, X_test: multi_restart(lambda : GMMVBEM(params), median_impute(X_train), X_test),
+            # 'Gibbs+median'  : lambda X_train, X_test: [get_full_results(GMMGibbs(params), median_impute(X_train), X_test)],
+            # 'VBEM+median'   : lambda X_train, X_test: multi_restart(lambda : GMMVBEM(params), median_impute(X_train), X_test),
             'EM+mode'       : lambda X_train, X_test: multi_restart(lambda : GMMEM(K), mode_impute(X_train), X_test),
-            'Gibbs+mode'    : lambda X_train, X_test: [get_full_results(GMMGibbs(params), mode_impute(X_train), X_test)],
-            'VBEM+mode'     : lambda X_train, X_test: multi_restart(lambda : GMMVBEM(params), mode_impute(X_train), X_test),
+            # 'Gibbs+mode'    : lambda X_train, X_test: [get_full_results(GMMGibbs(params), mode_impute(X_train), X_test)],
+            # 'VBEM+mode'     : lambda X_train, X_test: multi_restart(lambda : GMMVBEM(params), mode_impute(X_train), X_test),
         }
 
         metrics_df = run_full_evaluation(

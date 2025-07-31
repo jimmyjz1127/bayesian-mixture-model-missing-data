@@ -154,8 +154,9 @@ class GMMGibbs(GibbsModel):
         self.relabel_all_samples()
 
         self.aligned_means = self.get_aligned_param_means()
+        self.map_params = self.get_map_params()
 
-        return self.aligned_means
+        return self.map_params
     
     def compute_posterior(self, X):
         N,D = X.shape

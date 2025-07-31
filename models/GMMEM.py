@@ -74,7 +74,7 @@ class GMMEM:
                     V_i = Σ_hh - Σ_ho @ Σ_oo_inv @ Σ_oh
 
                     x_hat = self.X[i].copy()
-                    self.x_hat[miss_mask] = m_i
+                    x_hat[miss_mask] = m_i
                     new_μs[k] += self.R[i,k] * x_hat 
 
                     x_hats_outer = np.outer(x_hat, x_hat)
@@ -87,9 +87,31 @@ class GMMEM:
             for k in range(K):
                 new_Σs[k] /=  nk_safe[k] 
                 new_Σs[k] -= new_μs[k][:, None] @ new_μs[k][:, None].T
+                self.Σ[k] += eps * np.eye(D)
             
             self.μ = new_μs
             self.Σ = new_Σs
+
+    
+    def mean_impute(self, X, missing_mask):
+        X_0 = X.copy()
+        means = np.nanmean(np.where(missing_mask, np.nan, X), axis=0)
+        X_0[missing_mask] = np.take(means, np.where(missing_mask)[1])
+        return X_0
+    
+    def init_params(self, X, eps=1e-10):
+        N,D = X.shape
+        K = self.K
+        nk = self.R.sum(axis=0)
+        nk_safe = np.maximum(nk, eps)
+
+        self.μ = (self.R.T @ X)/nk_safe[:,None]
+        diff = X[:, None, :] - self.μ[None, :, :]
+        outer = diff[:, :, :, None] * diff[:, :, None, :]
+        weighted_outer = self.R[:, :, None, None] * outer  # (N, K, D, D)
+        self.Σ = weighted_outer.sum(axis=0) / nk_safe[:, None, None]
+
+        self.π = nk_safe / N
     
 
     def fit(self,X,max_iters=200,tol=1e-4):
@@ -100,22 +122,22 @@ class GMMEM:
         N,D = X.shape
         K = self.K
 
-        # self.π = np.random.dirichlet(alpha=np.full(K,1))
-        self.μ = np.zeros((K,D)) + np.random.gamma(1.0, 0.1, size=(K, D))
-        self.Σ = np.array([1e-6 * np.eye(D) for _ in range(K)])
-        self.R = np.random.dirichlet(alpha=np.full(K, 2), size=N)  # (N, K)
+        # self.μ = np.zeros((K,D)) + np.random.gamma(1.0, 0.1, size=(K, D))
+        # self.Σ = np.array([1e-6 * np.eye(D) for _ in range(K)])
+        z = np.random.choice(K, size=N)
+        self.R = np.zeros((N, K))
+        self.R[np.arange(N), z] = 1
+        self.init_params(self.mean_impute(self.X, self.missing_mask))
 
         loglikes = []
 
-        for t in range(0,max_iters):          
+        for t in range(0,max_iters):  
             self.m_step()  
-            ll = self.e_step()
+            ll = self.e_step()        
             loglikes.append(ll)
-
             if t > 1 and np.abs(loglikes[-1] - loglikes[-2]) < tol : break
 
         self.fitted = True
-
         return {
             'z':self.z,
             'R':self.R,

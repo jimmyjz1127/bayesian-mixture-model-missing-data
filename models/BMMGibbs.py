@@ -131,7 +131,9 @@ class BMMGibbs(GibbsModel):
 
         self.aligned_means = self.get_aligned_param_means()
 
-        return self.aligned_means
+        self.map_params = self.get_map_params()
+
+        return self.map_params
 
     def compute_posterior(self):
         N,D = self.X.shape

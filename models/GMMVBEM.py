@@ -229,7 +229,7 @@ class GMMVBEM(VBEMModel):
     '''
      
     
-    def fit(self, X, max_iters=200, tol=1e-3, mode=0):
+    def fit(self, X, max_iters=200, tol=1e-4, mode=0):
         """
             Parameters:
             X         : input data (N, D)
@@ -250,7 +250,9 @@ class GMMVBEM(VBEMModel):
         loglikes = []
         elbos = []
 
-        self.R = np.random.dirichlet(alpha=self.α_0, size=N)  # (N, K)
+        z = np.random.choice(self.K, size=N)
+        self.R = np.zeros((N, self.K))
+        self.R[np.arange(N), z] = 1
         self.x_hats = np.zeros((self.K, N, D))
         self.x_hats_outer = np.zeros((self.K, N, D, D))
 
