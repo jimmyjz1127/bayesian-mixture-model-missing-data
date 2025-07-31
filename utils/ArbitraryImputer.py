@@ -20,7 +20,7 @@ def median_impute(X, bernoulli=False):
     return X_imputed
 
 def mode_impute(X, bernoulli=False):
-    imputer = SimpleImputer(strategy='mode')
+    imputer = SimpleImputer(strategy='most_frequent')
     X_imputed = imputer.fit_transform(X)
     if bernoulli:
         X_imputed = np.round(X_imputed).astype(int)

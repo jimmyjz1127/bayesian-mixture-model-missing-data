@@ -51,10 +51,10 @@ class BMMVBEM(VBEMModel):
         X_obs   = np.where(obs, X, 0.0)       
         Xc_obs  = np.where(obs, 1.0 - X, 0.0) 
 
-        self.x_hat = expit(digamma(self.a) - digamma(self.b))
+        x_hat = expit(digamma(self.a) - digamma(self.b))
 
         # (N,D) @ (D,K) -> (N,K)
-        return X_obs @ elog_mu.T + Xc_obs @ elog_1mu.T
+        return X_obs @ elog_mu.T + Xc_obs @ elog_1mu.T, x_hat
     
     '''
         ############## ELBO ##############
@@ -118,7 +118,7 @@ class BMMVBEM(VBEMModel):
         ----------- ELBO ------------
     '''
 
-    def fit(self, X, mode=0, max_iters=100, tol=1e-3):
+    def fit(self, X, mode=0, max_iters=200, tol=1e-3):
         '''
             Parameters 
                 X       : input data matrix (N x D)
@@ -143,7 +143,7 @@ class BMMVBEM(VBEMModel):
         elbos = []
 
         for t in range(max_iters):
-            logprob = self.logprob(self.X, self.missing_mask)
+            logprob, self.x_hat = self.logprob(self.X, self.missing_mask)
             self.R, loglike =self.update_z(logprob)
             self.update_π()
             self.update_Θ()
@@ -164,15 +164,15 @@ class BMMVBEM(VBEMModel):
             'a'            : self.a,             # Beta a parameter       (K)
             'b'            : self.b,             # Beta b parameter       (K)
             'x_hat'        : self.x_hat,         # sufficent stats x      (K,D)
-            'loglikes'     : loglikes,      # log likelihoods
-            'elbos'        : elbos          # elbos 
+            'loglike'     : loglikes,      # log likelihoods
+            'elbo'        : elbos          # elbos 
         }
 
         return self.result
     
     def predict(self, X_new):
         missing_mask = np.isnan(X_new)
-        logprob = self.logprob(X_new,missing_mask)
+        logprob,_ = self.logprob(X_new,missing_mask)
         R,_ = self.update_z(logprob)
 
         return np.argmax(R, axis=1)
@@ -183,12 +183,12 @@ class BMMVBEM(VBEMModel):
 
         if not self.fitted: 
             raise Exception("Model has not been fitted yet.")
-        if X_new.shape != self.X.shape:
+        if X_new.shape[1] != self.X.shape[1]:
             raise Exception("Dimensions do not match fit.")
         if not np.any(missing_mask):
             return X_new
         
-        logprob = self.logprob(X_new, self.missing_mask)
+        logprob,_ = self.logprob(X_new, missing_mask)
         R,_ = self.update_z(logprob)
 
         exp_θ =  self.a / (self.a + self.b + eps)

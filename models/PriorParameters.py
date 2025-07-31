@@ -10,6 +10,9 @@ class GMMPriorParameters:
         self.S_0 = np.array([np.eye(D) for _ in range(K)])
         self.k_0 = np.full(K, 0.01, dtype=np.float64)
         self.ν_0 = np.full(K,(D + 1), dtype=np.float64)
+        # Missing Mask Beta parameters
+        self.o = np.full((K, D), 1) 
+        self.h  = np.full((K, D), 1) 
 
 class BMMPriorParameters:
     def __init__(self, data, K):
@@ -17,5 +20,9 @@ class BMMPriorParameters:
 
         self.K=K
         self.α_0 = np.full(K, 1/K, dtype=np.float64)
+        # Data Beta parameters
         self.a_0 = np.full((K,D), 1)
         self.b_0 = np.full((K,D), 1)
+        # Missing Mask Beta parameters
+        self.o = np.full((K, D), 1) 
+        self.h  = np.full((K, D), 1) 

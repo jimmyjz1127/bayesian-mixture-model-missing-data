@@ -25,7 +25,7 @@ class VBEMModel(ABC):
 
     
     def update_z(self,dataLogProb):
-        N,D = self.X.shape
+        N,_ = dataLogProb.shape
 
         R = np.zeros((N,self.K))
 

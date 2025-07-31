@@ -25,34 +25,35 @@ class BMMGibbs(GibbsModel):
         self.b_0 = priorParameters.b_0
         self.model_type = "bernoulli"
 
-    def likelihood(self,X,missing_mask,missing, eps=0):
+    def likelihood(self,X,missing_mask,missing, mnar=False, eps=0):
         N, D = X.shape
         self.K, _ = self.θ.shape
 
         if not missing:
-            logp  = np.log(self.π) + (X @ np.log(self.θ).T + (1 - X) @ np.log(1 - self.θ).T) # log likelihood
-            logp -= logp.max(axis=1, keepdims=True) # reduce logits for numerical stability (invariance property)
-            p     = np.exp(logp)
-            p    /= p.sum(axis=1, keepdims=True) # normalize
-            return p, np.sum(logp)/N, logp
+            log_ps  = np.log(self.π) + (X @ np.log(self.θ).T + (1 - X) @ np.log(1 - self.θ).T) # log likelihood
+            log_ps -= log_ps.max(axis=1, keepdims=True) # reduce logits for numerical stability (invariance property)
+        else:
+            logθ = np.log(np.clip(self.θ,  eps, 1 - eps)) # (K, D)
+            log1mθ = np.log(np.clip(1 - self.θ, eps, 1 - eps)) # (K, D)
 
-        logθ = np.log(np.clip(self.θ,  eps, 1 - eps)) # (K, D)
-        log1mθ = np.log(np.clip(1 - self.θ, eps, 1 - eps)) # (K, D)
+            obs_mask = ~missing_mask # (N, D)  
+            X_filled = np.nan_to_num(X, nan=0.0) 
 
-        obs_mask = ~missing_mask # (N, D)  
-        X_filled = np.nan_to_num(X, nan=0.0) 
+            X_exp = X_filled[:, None, :] # (N, 1, D)
+            obs_exp = obs_mask.astype(float)[:,None,:] # (N, 1, D)
+            logθ_exp = logθ[None, :, :]  # (1, K, D)
+            log1mθ_exp = log1mθ[None, :, :] # (1, K, D)
 
-        X_exp = X_filled[:, None, :] # (N, 1, D)
-        obs_exp = obs_mask.astype(float)[:,None,:] # (N, 1, D)
-        logθ_exp = logθ[None, :, :]  # (1, K, D)
-        log1mθ_exp = log1mθ[None, :, :] # (1, K, D)
+            log_px = np.sum(
+                            obs_exp * (X_exp * logθ_exp + 
+                            (1.0 - X_exp) * log1mθ_exp )
+                    ,axis=2) # (N, K)
+            
+            if mnar:
+                log_px += (obs_mask @ np.log(self.γ).T + (1 - obs_mask) @ np.log(1 - self.γ).T)
 
-        log_px = np.sum(
-                        obs_exp * (X_exp * logθ_exp + 
-                        (1.0 - X_exp) * log1mθ_exp )
-                ,axis=2) # (N, K)
+            log_ps = log_px + np.log(self.π)[None, :] # (N, K)
 
-        log_ps = log_px + np.log(self.π)[None, :] # (N, K)
         log_norm = logsumexp(log_ps, axis=1, keepdims=True)
         loglik = np.sum(log_norm)/N
         p = np.exp(log_ps - log_norm)
@@ -91,7 +92,11 @@ class BMMGibbs(GibbsModel):
 
         return X_sample
     
-    def fit(self, X, num_iters=4000, burn=1000):
+    def fit(self, X, num_iters=4000, burn=1000, mnar=False):
+        '''
+            Performs Gibbs Sampling 
+            By default returns mean of aligned samples (using Hungarian algorithm)
+        '''
         self.X = X
         N,D = X.shape 
 
@@ -108,8 +113,9 @@ class BMMGibbs(GibbsModel):
         for t in range(0,num_iters+burn):
             self.sample_π()
             self.sample_θ()
+            if mnar : self.sample_γ()
 
-            ps,loglike,R = self.likelihood(self.X, self.missing_mask, self.missing)
+            ps,loglike,R = self.likelihood(self.X, self.missing_mask, self.missing, mnar)
             
             self.sampleZ(ps)
 
@@ -121,9 +127,11 @@ class BMMGibbs(GibbsModel):
                     'loglike' : loglike,
                     'posterior' : self.compute_posterior()
                 })
-        self.relabel_all_samples()
+        self.relabel_all_samples() # Align samples using Hungarian
 
-        return self.samples
+        self.aligned_means = self.get_aligned_param_means()
+
+        return self.aligned_means
 
     def compute_posterior(self):
         N,D = self.X.shape
@@ -147,7 +155,7 @@ class BMMGibbs(GibbsModel):
         return comp_prior + cat_prior + param_prior + log_likelihood
 
 
-    def compute_responsibility(self, X_new):
+    def compute_responsibility(self, X_new, mnar=False):
         ''' 
             Computes marginalized responsibility matrix for data with or without missing features 
             Used for computing log likelihood for holdout set
@@ -156,19 +164,19 @@ class BMMGibbs(GibbsModel):
         missing_mask = np.isnan(X_new)
         missing = np.isnan(X_new).any()
 
-        return self.likelihood(X_new,missing_mask,missing)[2]
+        return self.likelihood(X_new,missing_mask,missing, mnar)[2]
 
-    def log_likelihood(self, X_new):
+    def log_likelihood(self, X_new, mnar=False):
         N,D = X_new.shape
 
-        R = self.compute_responsibility(X_new)
+        R = self.compute_responsibility(X_new, mnar)
         log_norm = logsumexp(R, axis=1, keepdims=True)
         loglike = np.sum(log_norm)/N
 
         return loglike
     
-    def predict(self, X_new):
-        R = self.compute_responsibility(X_new)
+    def predict(self, X_new, mnar=False):
+        R = self.compute_responsibility(X_new, mnar)
         zs = np.argmax(R, axis=1)
         return zs
 

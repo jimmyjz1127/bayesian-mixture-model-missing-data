@@ -13,6 +13,8 @@ class GibbsModel(ABC):
         self.prior = prior
         self.K = prior.K
         self.α_0 = prior.α_0
+        self.o = prior.o
+        self.h = prior.h
 
     @abstractmethod
     def fit(self, X, num_iters=4000, burn=1000):
@@ -21,29 +23,26 @@ class GibbsModel(ABC):
         """
         pass
 
-    def sampleZ(self, p):
-        ''' 
-            Samples cluster assignments z for n datapoints 
-
-            @param (p) : softmax categorical probabilities over clusters (N, K)
-        '''
-        
+    def sampleZ(self, p):      
         # Inverse sample from categorical distribution
         cdf = np.cumsum(p, axis=1) # compute CDF for each row (each categorical distribution)
         u   = self.rng.random(size=(p.shape[0], 1))
         self.z = (cdf > u).argmax(axis=1)  # return first index where cdf is greater than random u
     
     def sample_π(self):
-        ''' 
-            Samples mixing weights from Dirichlet distribution parameterized by pseudocounts of components
-            
-            @param (zs)  : cluster assignments (n)
-            @param (α_0) : Dirichlet prior list (K)
-            @param (K)   : the number of components
-        '''
-
         z_counts = np.bincount((self.z).astype(np.int64), minlength=self.K)
         self.π = self.rng.dirichlet(self.α_0 + z_counts)   
+
+    def sample_γ(self):
+        N,D = self.X.shape 
+        obs_mask = (~self.missing_mask).astype(np.float64)
+
+        zs_zerohot = np.eye(self.K)[self.z.astype(np.int64)]
+    
+        mkd1 = zs_zerohot.T @ obs_mask   # shape: (K, D)
+        mkd0 = np.sum(zs_zerohot, axis=0)[:, None] - mkd1
+
+        self.γ = self.rng.beta(self.o + mkd1, self.h + mkd0)
 
 
     def get_map_params(self):
@@ -78,25 +77,29 @@ class GibbsModel(ABC):
             'avg_pl'  : avg_pl / N
         }
     
-    def posterior_predict(self, X_new, sample):
+    def posterior_predict(self, X_new, sample=None):
         N, D = X_new.shape
         K = self.K
         missing_mask = np.isnan(X_new)
 
         if not self.fitted:
             raise Exception("Model has not been fitted yet.")
-        if X_new.shape != self.X.shape:
+        if X_new.shape[1] != self.X.shape[1]:
             raise Exception("Dimensions do not match fit.")
         if not np.any(missing_mask):
             return X_new
+        if sample is None:
+            sample = self.aligned_means
 
-        
         π = sample['π'] 
         X_imputed = X_new.copy()
 
         for i in range(N):
             mask = missing_mask[i]
             obs_mask = ~mask
+
+            if not np.any(mask):
+                continue
 
             # Sample cluster assignment
             z = np.random.choice(K, p=π)
@@ -159,8 +162,6 @@ class GibbsModel(ABC):
         Z = np.array([s['z'] for s in self.samples])
         self.z_ref = mode(Z, axis=0).mode.squeeze()
 
-        print(self.z_ref.shape)
-
         self.aligned_samples = []
         for t, sample in enumerate(self.samples):
             # Compute permutation to align current sample's z to reference
@@ -175,26 +176,30 @@ class GibbsModel(ABC):
         if self.model_type == "bernoulli":
             θ = np.mean([s['θ'] for s in self.aligned_samples], axis=0)
             π = np.mean([s['π'] for s in self.aligned_samples], axis=0)
+            ll = np.mean([s['loglike'] for s in self.aligned_samples], axis=0)
+            post = np.mean([s['posterior'] for s in self.aligned_samples], axis=0)
             return {
                 "θ" : θ,
                 'π' : π,
                 'z' : self.z_ref,
-                # 'loglikes' : self.samples['loglikes'],
-                # 'posterior' : self.samples['posterior']
+                'loglike' : ll,
+                'posterior' : post
             }
         else:
             μ = np.mean([s['μ'] for s in self.aligned_samples], axis=0)
             Σ = np.mean([s['Σ'] for s in self.aligned_samples], axis=0)
             π = np.mean([s['π'] for s in self.aligned_samples], axis=0)
             x = np.mean([s['x'] for s in self.aligned_samples], axis=0)
+            ll = np.mean([s['loglike'] for s in self.aligned_samples], axis=0)
+            post = np.mean([s['posterior'] for s in self.aligned_samples], axis=0)
             return {
                 'μ': μ,
                 'Σ': Σ,
                 'π' : π,
                 'z' : self.z_ref,
                 'x' : x,
-                # 'loglikes' : self.samples['loglikes'],
-                # 'posterior' : self.samples['posterior']
+                'loglike' : ll,
+                'posterior' : post
             }
 
     

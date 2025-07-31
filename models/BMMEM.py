@@ -8,12 +8,12 @@ class BMMEM:
     def __init__(self, K):
         self.rng = np.random.default_rng(5099)
         self.K = K
+        self.fitted = False
 
     
     def e_step(self,eps=1e-14):
         N,D = self.X.shape
         K = self.K
-
         self.R = np.zeros((N,K))
 
         if not self.missing:
@@ -34,24 +34,22 @@ class BMMEM:
 
         return loglik
     
-    def m_step(self):
-        K = self.K
-
+    def m_step(self, eps=1e-10):
         N,D = self.X.shape
-        obs_mask = ~self.missing_mask
 
         nk = self.R.sum(axis=0)
+        nk_safe = np.maximum(nk, eps)
 
         x = self.X
         if self.missing:
             x = self.X.copy()
-            x[self.missing_mask] = (self.R@self.θ)[obs_mask]
+            x[self.missing_mask] = (self.R@self.θ)[self.missing_mask]
 
-        self.θ = (self.R.T @ x)/nk[:,None]
-        self.π = nk/N
+        self.θ = (self.R.T @ x)/nk_safe[:,None]
+        self.π = nk_safe/N
 
     
-    def fit(self, X, max_iters=100, tol=1e-4):
+    def fit(self, X, max_iters=200, tol=1e-4):
         N,D = X.shape
 
         self.X = X
@@ -62,23 +60,26 @@ class BMMEM:
         self.missing = np.any(self.missing_mask)
 
         self.R = np.random.dirichlet(alpha=np.full(K, 1), size=N)
-        self.θ = np.random.uniform(0,1,size=(K,D))
+        self.θ = np.random.uniform(0.1,0.9,size=(K,D))
 
         loglikes = []
 
-        self.m_step()
-
         for _ in range(0,max_iters):
-            ll = self.e_step()
-
             self.m_step()
+            ll = self.e_step()
 
             self.z = np.argmax(self.R, axis=1)
             loglikes.append(ll)
 
             if len(loglikes) > 1 and np.abs(loglikes[-1] - loglikes[-2]) < tol : break
 
-        return self.z,self.π,self.θ,loglikes
+        self.fitted = True
+        return {
+            'z' : self.z,
+            'π' : self.π,
+            'θ' : self.θ,
+            'loglike' : loglikes
+        }
     
     def compute_responsibility(self, X_new, eps=1e-14):
         """
@@ -114,7 +115,7 @@ class BMMEM:
 
         if not self.fitted: 
             raise Exception("Model has not been fitted yet.")
-        if X_new.shape != self.X.shape:
+        if X_new.shape[1] != self.X.shape[1]:
             raise Exception("Dimensions do not match fit.")
         if not np.any(missing_mask):
             return X_new

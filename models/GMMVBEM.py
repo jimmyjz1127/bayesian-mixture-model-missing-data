@@ -40,7 +40,9 @@ class GMMVBEM(VBEMModel):
 
         # Computing x_bar 
         num   = (self.R.T[:, :, None] * self.x_hats).sum(axis=1)
-        x_bar = num / self.nks[:, None] # (K,D)
+        x_bar = np.zeros_like(num)
+        nonzero = self.nks > 0
+        x_bar[nonzero] = num[nonzero] / self.nks[nonzero, None]
 
         x_bar_outer = np.einsum('kd,ke->kde', x_bar, x_bar)      # (K,D,D)
         centered    = self.x_hats_outer - x_bar_outer[:, None, :, :]  # (K,N,D,D)
@@ -59,7 +61,7 @@ class GMMVBEM(VBEMModel):
 
 
     def logprob(self, X, missing_mask):
-        N,D = self.X.shape
+        N,D = X.shape
 
         m_ho = np.array([[None]*self.K for _ in range(N)])
         V_ho = np.array([[None]*self.K for _ in range(N)])
@@ -81,7 +83,7 @@ class GMMVBEM(VBEMModel):
                 Σ_oo = Σ[obs_mask][:, obs_mask]
                 Σ_hh = Σ[miss_mask][:, miss_mask]
 
-                inv_Σ_oo = np.linalg.inv(Σ_oo)
+                inv_Σ_oo = np.linalg.pinv(Σ_oo)
 
                 m_ho[i, k] = m_h + Σ_ho @ inv_Σ_oo @ (x_o - m_o)
                 V_ho[i, k] = Σ_hh - Σ_ho @ inv_Σ_oo @ Σ_oh
@@ -227,7 +229,7 @@ class GMMVBEM(VBEMModel):
     '''
      
     
-    def fit(self, X, max_iters=200, tol=1e-4, mode=0):
+    def fit(self, X, max_iters=200, tol=1e-3, mode=0):
         """
             Parameters:
             X         : input data (N, D)
@@ -266,13 +268,9 @@ class GMMVBEM(VBEMModel):
             self.update_Θ()
             self.π = np.sum(self.R,axis=0)/N
             self.update_π()
-
             logprobs,self.m_ho, self.V_ho = self.logprob(self.X, self.missing_mask)
-
             self.compute_sufficient_stats()
-
             self.R, loglike = self.update_z(logprobs)
-
             elbo = self.compute_elbo()
 
             elbos.append(elbo)
@@ -293,14 +291,14 @@ class GMMVBEM(VBEMModel):
             'V_ho'         : self.V_ho,          # conditional covariance (N,K,D,D)
             'x_hats'       : self.x_hats,        # sufficient states x    (K,N,D)
             'x_hats_outer' : self.x_hats_outer,  # sufficient states xx^T (K,N,D,D)
-            'loglikes'     : loglikes,      # log likelihoods
-            'elbos'        : elbos          # elbos 
+            'loglike'     : loglikes,      # log likelihoods
+            'elbo'        : elbos          # elbos 
         }
         return self.result
     
     def predict(self, X_new):
         missing_mask = np.isnan(X_new)
-        logprob = self.logprob(X_new,missing_mask)
+        logprob,_,_ = self.logprob(X_new,missing_mask)
         R,_ = self.update_z(logprob)
 
         return np.argmax(R, axis=1)
@@ -311,7 +309,7 @@ class GMMVBEM(VBEMModel):
 
         if not self.fitted: 
             raise Exception("Model has not been fitted yet.")
-        if X_new.shape != self.X.shape:
+        if X_new.shape[1] != self.X.shape[1]:
             raise Exception("Dimensions do not match fit.")
         if not np.any(missing_mask):
             return X_new

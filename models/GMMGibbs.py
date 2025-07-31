@@ -29,7 +29,7 @@ class GMMGibbs(GibbsModel):
         self.ν_0 = priorParameters.ν_0
         self.model_type = "gaussian"
 
-    def likelihood(self, X):
+    def likelihood(self, X, mnar=False):
         N,D = X.shape
         K = self.π.shape[0]
         
@@ -37,6 +37,10 @@ class GMMGibbs(GibbsModel):
 
         for k in range(K):
             logp[:,k] = np.log(self.π[k]) + multivariate_normal.logpdf(X, mean=self.μ[k],cov=self.Σ[k])
+
+        if mnar:
+            obs_mask = (~self.missing_mask).astype(float)
+            logp += (obs_mask @ np.log(self.γ).T + (1 - obs_mask) @ np.log(1 - self.γ).T)
 
         log_norm = logsumexp(logp,axis=1,keepdims=True)
 
@@ -56,6 +60,8 @@ class GMMGibbs(GibbsModel):
             Σ = self.Σ[k]
 
             miss_mask = self.missing_mask[i]
+            if not np.any(miss_mask):
+                continue
             obs_mask = ~miss_mask
 
             μ_h = μ[miss_mask]
@@ -67,8 +73,6 @@ class GMMGibbs(GibbsModel):
 
             m_i = μ_h + Σ_ho @ np.linalg.inv(Σ_oo) @ (self.X[i,obs_mask] - μ_o)
             V_i = Σ_hh - Σ_ho @ np.linalg.inv(Σ_oo) @ Σ_oh
-
-            # V_i += 1e-6 * np.eye(V_i.shape[0])
 
             X_sample[i,miss_mask] = np.random.multivariate_normal(m_i,V_i)
 
@@ -108,7 +112,7 @@ class GMMGibbs(GibbsModel):
         X_0[missing_mask] = np.take(means, np.where(missing_mask)[1])
         return X_0
 
-    def fit(self, X, num_iters=4000, burn=1000):
+    def fit(self, X, num_iters=4000, burn=1000, mnar=False):
         """ 
             Main Gibbs Sampling Loop
         """
@@ -133,9 +137,8 @@ class GMMGibbs(GibbsModel):
                 x = self.sampleX()
 
             self.sample_NIW(x)
-
-            p, loglike = self.likelihood(x)
-            
+            if mnar : self.sample_γ()
+            p, loglike = self.likelihood(x, mnar)
             self.sampleZ(p)
 
             if t > burn:
@@ -150,7 +153,9 @@ class GMMGibbs(GibbsModel):
                 })
         self.relabel_all_samples()
 
-        return self.samples
+        self.aligned_means = self.get_aligned_param_means()
+
+        return self.aligned_means
     
     def compute_posterior(self, X):
         N,D = X.shape
@@ -165,7 +170,6 @@ class GMMGibbs(GibbsModel):
 
             mean_prior   = multivariate_normal.logpdf(μ, mean=self.m_0[k], cov=(1/self.k_0[k])*Σ)
             cov_prior    = invwishart.logpdf(Σ, df=self.ν_0[k], scale=self.S_0[k])
-
             param_prior += mean_prior + cov_prior
 
         log_likelihood = 0.0
@@ -176,7 +180,6 @@ class GMMGibbs(GibbsModel):
             log_likelihood += multivariate_normal.logpdf(X[n], mean=μ, cov=Σ)
 
         posterior_prob = comp_prior + cat_prior + param_prior + log_likelihood
-
         return posterior_prob
     
     def compute_responsibility(self, X,  μs, Σs, πs):
@@ -227,12 +230,14 @@ class GMMGibbs(GibbsModel):
 
         return loglike
     
-    def predict(self, X, μ, Σ, π):
+    def predict(self, X, sample=None):
         """
             For making clustering predictions on a holdout set (test set)
         """ 
+        if sample is None:
+            sample = self.aligned_means
 
-        R = self.compute_responsibility(X, μ, Σ, π)
+        R = self.compute_responsibility(X, sample['μ'], sample['Σ'], sample['π'])
         zs = np.argmax(R, axis=1)
         return zs
     
