@@ -20,12 +20,19 @@ class BMMEM:
             self.R = np.log(self.π + eps) + (self.X @ np.log(self.θ + eps).T + (1 - self.X) @ np.log(1 - self.θ + eps).T)
         else:
             for i in range(N):
+                mask = ~self.missing_mask[i]
+                if not np.any(mask):
+                    self.R[i,:] = np.log(self.π + eps)
+                    continue
                 for k in range(K):
-                    mask = ~self.missing_mask[i]
+                    x_obs = self.X[i][mask]
+                    θ_obs = self.θ[k][mask]
 
-                    self.R[i,k] = (np.log(self.π[k] + eps) + 
-                                    np.sum((self.X[i] * np.log(self.θ[k] + eps))[mask]) + 
-                                    np.sum(((1 - self.X[i]) * np.log(1 - self.θ[k] + eps))[mask]))
+                    self.R[i,k] = (
+                        np.log(self.π[k] + eps) + 
+                        np.sum(x_obs * np.log(θ_obs + eps)) + 
+                        np.sum((1 - x_obs) * np.log(1 - θ_obs + eps))
+                    )
 
         log_norm = logsumexp(self.R, axis=1, keepdims=True)
         self.R = np.exp(self.R - log_norm)
@@ -99,11 +106,19 @@ class BMMEM:
             R = np.log(self.π + eps) + (X_new @ np.log(self.θ + eps).T + (1 - X_new) @ np.log(1 - self.θ + eps).T)
         else:
             for i in range(N):
+                mask = ~missing_mask[i]
+                x_obs = X_new[i][mask]
+
+                if not np.any(mask):
+                    R[i,:] = np.log(self.π + eps)
+                    continue
+                
                 for k in range(self.K):
-                    mask = ~missing_mask[i]
+                    θ_obs = self.θ[k][mask]
+                    
                     logp = np.log(self.π[k] + eps)
-                    logp += np.sum((X_new[i] * np.log(self.θ[k] + eps))[mask])
-                    logp += np.sum(((1 - X_new[i]) * np.log(1 - self.θ[k] + eps))[mask])
+                    logp += np.sum(x_obs * np.log(θ_obs + eps))
+                    logp += np.sum((1 - x_obs) * np.log(1 -θ_obs + eps))
                     R[i, k] = logp
 
         log_norm = logsumexp(R, axis=1, keepdims=True)

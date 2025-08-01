@@ -31,7 +31,6 @@ class BMMGibbs(GibbsModel):
 
         if not missing:
             log_ps  = np.log(self.π) + (X @ np.log(self.θ).T + (1 - X) @ np.log(1 - self.θ).T) # log likelihood
-            log_ps -= log_ps.max(axis=1, keepdims=True) # reduce logits for numerical stability (invariance property)
         else:
             logθ = np.log(np.clip(self.θ,  eps, 1 - eps)) # (K, D)
             log1mθ = np.log(np.clip(1 - self.θ, eps, 1 - eps)) # (K, D)
@@ -74,8 +73,6 @@ class BMMGibbs(GibbsModel):
             X_observed = self.X
 
         nkd1 = zs_zerohot.T @ X_observed
-
-        # nkd0 = nk - nkd1
         nkd0 = np.clip(nk - nkd1, 1e-8, None)
 
         self.θ = self.rng.beta(self.a_0 + nkd1, self.b_0 + nkd0)
@@ -92,7 +89,7 @@ class BMMGibbs(GibbsModel):
 
         return X_sample
     
-    def fit(self, X, num_iters=4000, burn=1000, mnar=False):
+    def fit(self, X, num_iters=6000, burn=2000, mnar=False):
         '''
             Performs Gibbs Sampling 
             By default returns mean of aligned samples (using Hungarian algorithm)
@@ -100,7 +97,7 @@ class BMMGibbs(GibbsModel):
         self.X = X
         N,D = X.shape 
 
-        assert np.nanmin(self.X) >= 0 and np.nanmax(self.X) <= 1, "X must be binary"
+        # assert np.nanmin(self.X) >= 0 and np.nanmax(self.X) <= 1, "X must be binary"
 
         self.missing_mask = np.isnan(self.X)
         self.missing = np.any(self.missing_mask)
@@ -133,7 +130,7 @@ class BMMGibbs(GibbsModel):
 
         self.map_params = self.get_map_params()
 
-        return self.map_params
+        return self.aligned_means
 
     def compute_posterior(self):
         N,D = self.X.shape

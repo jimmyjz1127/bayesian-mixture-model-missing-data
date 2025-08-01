@@ -24,6 +24,10 @@ class GMMEM:
             for i in range(N):
                 obs_mask = ~self.missing_mask[i]
 
+                if not np.any(obs_mask):
+                    self.R[i,:] = np.log(self.π + eps)
+                    continue
+
                 for k in range(K):
                     μ_o = self.μ[k][obs_mask]
                     Σ_oo = self.Σ[k][np.ix_(obs_mask, obs_mask)]
@@ -60,6 +64,9 @@ class GMMEM:
                 miss_mask = self.missing_mask[i]
                 obs_mask = ~miss_mask
 
+                if not np.any(obs_mask):
+                    continue
+
                 for k in range(K):
                     μ_h = self.μ[k][miss_mask]
                     μ_o = self.μ[k][obs_mask]
@@ -67,6 +74,8 @@ class GMMEM:
                     Σ_ho = self.Σ[k][np.ix_(miss_mask, obs_mask)]
                     Σ_oo = self.Σ[k][np.ix_(obs_mask, obs_mask)]
                     Σ_hh = self.Σ[k][np.ix_(miss_mask, miss_mask)]
+
+                    Σ_oo = 0.5 * (Σ_oo + Σ_oo.T) + (1e-6 * np.eye(Σ_oo.shape[0]))
 
                     Σ_oo_inv = np.linalg.inv(Σ_oo)
 
@@ -167,22 +176,28 @@ class GMMEM:
                 obs_mask = ~miss_mask
 
                 for k in range(K):
-                    μ_h = self.μ[k][miss_mask]
-                    μ_o = self.μ[k][obs_mask]
-                    Σ_oh = self.Σ[k][np.ix_(obs_mask, miss_mask)]
-                    Σ_ho = self.Σ[k][np.ix_(miss_mask, obs_mask)]
-                    Σ_oo = self.Σ[k][np.ix_(obs_mask, obs_mask)]
-                    Σ_hh = self.Σ[k][np.ix_(miss_mask, miss_mask)]
+                    if not np.any(obs_mask):
+                        cond_means[i, k] = self.μ[k]
+                        cond_covs[i, k] = self.Σ[k]
+                        R[i,k] = np.log(self.π[k] + eps)
+                    else:
+                        μ_h = self.μ[k][miss_mask]
+                        μ_o = self.μ[k][obs_mask]
+                        Σ_oh = self.Σ[k][np.ix_(obs_mask, miss_mask)]
+                        Σ_ho = self.Σ[k][np.ix_(miss_mask, obs_mask)]
+                        Σ_oo = self.Σ[k][np.ix_(obs_mask, obs_mask)]
+                        Σ_hh = self.Σ[k][np.ix_(miss_mask, miss_mask)]
 
-                    Σ_oo_inv = np.linalg.inv(Σ_oo)
+                        Σ_oo = 0.5 * (Σ_oo + Σ_oo.T) + (1e-6 * np.eye(Σ_oo.shape[0]))
+                        Σ_oo_inv = np.linalg.inv(Σ_oo)
 
-                    m_i = μ_h + Σ_ho @ Σ_oo_inv @ (X_new[i,obs_mask] - μ_o)
-                    V_i = Σ_hh - Σ_ho @ Σ_oo_inv @ Σ_oh
-                    
-                    cond_means[i,k] = m_i
-                    cond_covs[i,k] = V_i
+                        m_i = μ_h + Σ_ho @ Σ_oo_inv @ (X_new[i,obs_mask] - μ_o)
+                        V_i = Σ_hh - Σ_ho @ Σ_oo_inv @ Σ_oh
+                        
+                        cond_means[i,k] = m_i
+                        cond_covs[i,k] = V_i
 
-                    R[i,k] = np.log(self.π[k] + eps) + multivariate_normal.logpdf(X_new[i,obs_mask],μ_o,Σ_oo,allow_singular=True)
+                        R[i,k] = np.log(self.π[k] + eps) + multivariate_normal.logpdf(X_new[i,obs_mask],μ_o,Σ_oo,allow_singular=True)
 
         log_norm = logsumexp(R, axis=1, keepdims=True)
         R = np.exp(R - log_norm)

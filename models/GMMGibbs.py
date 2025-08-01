@@ -64,6 +64,11 @@ class GMMGibbs(GibbsModel):
                 continue
             obs_mask = ~miss_mask
 
+            if not np.any(obs_mask):
+                # Entire row is missing: sample from full μ, Σ
+                X_sample[i] = np.random.multivariate_normal(μ, Σ)
+                continue
+
             μ_h = μ[miss_mask]
             μ_o = μ[obs_mask]
             Σ_oh = Σ[obs_mask][:, miss_mask]
@@ -112,7 +117,7 @@ class GMMGibbs(GibbsModel):
         X_0[missing_mask] = np.take(means, np.where(missing_mask)[1])
         return X_0
 
-    def fit(self, X, num_iters=4000, burn=1000, mnar=False):
+    def fit(self, X, num_iters=6000, burn=2000, mnar=False):
         """ 
             Main Gibbs Sampling Loop
         """
@@ -206,6 +211,9 @@ class GMMGibbs(GibbsModel):
             for i in range(N):
                 miss_mask = missing_mask[i]
                 obs_mask = ~miss_mask
+                if not np.any(obs_mask):
+                    logprobs[i,k] = np.log(π)
+                    continue
 
                 x_o = X[i][obs_mask]
                 μ_o  = μ[obs_mask]

@@ -70,11 +70,17 @@ class GMMVBEM(VBEMModel):
         for i in range(N):
             miss_mask = missing_mask[i]
             obs_mask = ~miss_mask
+
             x_o = X[i][obs_mask]
 
             for k in range(self.K):
                 m = self.m[k]
                 Σ = self.Σ[k]
+
+                if not np.any(obs_mask):
+                    m_ho[i, k] = m[miss_mask]
+                    V_ho[i, k] = Σ[np.ix_(miss_mask, miss_mask)]
+                    continue
 
                 m_h = m[miss_mask]
                 m_o = m[obs_mask]
@@ -83,6 +89,7 @@ class GMMVBEM(VBEMModel):
                 Σ_oo = Σ[obs_mask][:, obs_mask]
                 Σ_hh = Σ[miss_mask][:, miss_mask]
 
+                Σ_oo = 0.5 * (Σ_oo + Σ_oo.T) + (1e-6 * np.eye(Σ_oo.shape[0]))
                 inv_Σ_oo = np.linalg.pinv(Σ_oo)
 
                 m_ho[i, k] = m_h + Σ_ho @ inv_Σ_oo @ (x_o - m_o)
@@ -106,7 +113,6 @@ class GMMVBEM(VBEMModel):
 
         for i in range(N):
             miss_mask = self.missing_mask[i]
-            obs_mask = ~miss_mask
             for k in range(K):
                 x_hat = self.X[i].copy()
                 x_hat[miss_mask] = self.m_ho[i,k]
@@ -256,7 +262,7 @@ class GMMVBEM(VBEMModel):
         self.x_hats = np.zeros((self.K, N, D))
         self.x_hats_outer = np.zeros((self.K, N, D, D))
 
-        # fill with conditional mean imputation 
+        # fill with mean imputation 
         for n in range(N):
             miss_mask = self.missing_mask[n]
             for k in range(self.K):
