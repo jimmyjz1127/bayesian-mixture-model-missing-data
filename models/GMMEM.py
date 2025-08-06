@@ -198,7 +198,9 @@ class GMMEM:
         log_norm = logsumexp(R, axis=1, keepdims=True)
         R = np.exp(R - log_norm)
 
-        return R, cond_means, cond_covs
+        loglike = np.sum(log_norm) / N
+
+        return R, cond_means, cond_covs, loglike
     
     def posterior_predict(self, X_new, eps=1e-14):
         ''' 
@@ -216,7 +218,7 @@ class GMMEM:
         if X_new.shape[1] != self.X.shape[1]:
             raise Exception("Dimensions do not match fit.")
 
-        R, cond_means, cond_covs = self.compute_responsibility(X_new)
+        R, cond_means, cond_covs, _ = self.compute_responsibility(X_new)
 
         X_filled = X_new.copy()
         for i in range(N):
@@ -227,8 +229,12 @@ class GMMEM:
         
     
     def predict(self, X_new):
-        R, _, _ = self.compute_responsibility(X_new)
+        R, _, _, _ = self.compute_responsibility(X_new)
         return np.argmax(R, axis=1)
+    
+    def log_likelihood(self, X_new):
+        R, _, _, ll = self.compute_responsibility(X_new)
+        return ll
 
 
 

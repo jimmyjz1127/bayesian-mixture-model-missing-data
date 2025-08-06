@@ -330,6 +330,12 @@ class GMMVBEM(VBEMModel):
             X_filled[i][missing_mask[i]] = np.sum(R[i] * m_ho[i])
 
         return X_filled
+    
+    def log_likelihood(self, X_new):
+        missing_mask = np.isnan(X_new)
+        logprob,_,_ = self.logprob(X_new,missing_mask)
+        R,ll = self.update_z(logprob)
+        return ll
 
     
 

@@ -6,30 +6,27 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 
-def multi_restart(model_factory, X_train, X_test, N=10):
+def multi_restart(model_factory, X_train, X_test, X_train_true, N=10):
     samples = []
     for n in range(N):
         model = model_factory()
-        result = get_full_results(model, X_train, X_test)
+        result = get_full_results(model, X_train, X_test, X_train_true)
         samples.append(result)
 
     return samples
 
-def get_full_results(model, X_train, X_test, mnar=False):
+def get_full_results(model, X_train, X_test,X_train_true, mnar=False):
     result = None
     if mnar:
         result = model.fit(X_train, mnar=True)
     else:
         result = model.fit(X_train)
-    if X_test is not None : 
-        result['test_z'] = model.predict(X_test)
-        result['X_test_impute'] = model.posterior_predict(X_test)
-    result['X_train_impute'] = model.posterior_predict(X_train)
+    # if X_test is not None : 
+    #     result['test_z'] = model.predict(X_test)
+    #     result['X_test_impute'] = model.posterior_predict(X_test)
+    # result['X_train_impute'] = model.posterior_predict(X_train)
 
-    ll =  result['loglike']
-    if isinstance(result['loglike'], list):
-        ll = result['loglike'][-1]
-    result['loglike'] = ll
+    result['loglike'] = model.log_likelihood(X_train_true)
     return result
 
 
@@ -41,7 +38,7 @@ def rmse(A,B):
 def evaluate_model(method_fn, X_missing_train, X_true_train, y_train,
                    X_missing_test, X_true_test, y_test, bernoulli=False):
     
-    results = method_fn(X_missing_train, X_missing_test)
+    results = method_fn(X_missing_train, X_missing_test, X_true_train)
     if not isinstance(results, list):
         results = [results]
 

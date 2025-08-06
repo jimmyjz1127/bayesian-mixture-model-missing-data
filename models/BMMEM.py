@@ -124,7 +124,9 @@ class BMMEM:
         log_norm = logsumexp(R, axis=1, keepdims=True)
         R = np.exp(R - log_norm)
 
-        return R
+        loglike = np.sum(log_norm)/N
+
+        return R,loglike
     
     def posterior_predict(self, X_new, eps=1e-14):
         N,D = X_new.shape
@@ -137,7 +139,7 @@ class BMMEM:
         if not np.any(missing_mask):
             return X_new
 
-        R = self.compute_responsibility(X_new)
+        R,_ = self.compute_responsibility(X_new)
 
         X_filled = X_new.copy()
         for i in range(N):
@@ -147,8 +149,12 @@ class BMMEM:
 
         return X_filled
     
+
+    def log_likelihood(self, X_new):
+        return self.compute_responsibility(X_new)[1]
+    
     def predict(self, X_new):
-        R = self.compute_responsibility(X_new)
+        R,_ = self.compute_responsibility(X_new)
         return np.argmax(R, axis=1)
 
 

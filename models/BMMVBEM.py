@@ -202,6 +202,12 @@ class BMMVBEM(VBEMModel):
                     X_filled[i, d] = np.sum(R[i] * exp_θ[:, d])
 
         return X_filled
+    
+    def log_likelihood(self, X_new):
+        missing_mask = np.isnan(X_new)
+        logprob,_ = self.logprob(X_new,missing_mask)
+        R,ll = self.update_z(logprob)
+        return ll
 
 
 
