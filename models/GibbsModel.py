@@ -17,7 +17,7 @@ class GibbsModel(ABC):
         self.h = prior.h
 
     @abstractmethod
-    def fit(self, X, num_iters=4000, burn=1000):
+    def fit(self, X, num_iters=6000, burn=2000, mnar=False, collapse=False):
         """
             To be implemented by subclass 
         """
@@ -50,6 +50,13 @@ class GibbsModel(ABC):
             raise Exception("Model has not been fitted yet.") 
         
         sample_map = max(self.samples, key=lambda p : p['posterior'])
+        return sample_map
+    
+    def get_map_params2(self):
+        if not self.fitted:
+            raise Exception("Model has not been fitted yet.") 
+        
+        sample_map = max(self.aligned_samples, key=lambda p : p['posterior'])
         return sample_map
     
     def get_summarizing_results(self, y):
@@ -159,8 +166,9 @@ class GibbsModel(ABC):
         if not self.fitted:
             raise Exception("Model has not been fitted yet.") 
 
-        Z = np.array([s['z'] for s in self.samples])
-        self.z_ref = mode(Z, axis=0).mode.squeeze()
+        # Z = np.array([s['z'] for s in self.samples])
+        # self.z_ref = mode(Z, axis=0).mode.squeeze()
+        self.z_ref = self.get_map_params()['z']
 
         self.aligned_samples = []
         for t, sample in enumerate(self.samples):
@@ -173,6 +181,9 @@ class GibbsModel(ABC):
         if not self.fitted:
             raise Exception("Model has not been fitted yet.")
         
+        Z = np.array([s['z'] for s in self.aligned_samples])
+        best_z = mode(Z, axis=0).mode.squeeze()
+        
         if self.model_type == "bernoulli":
             θ = np.mean([s['θ'] for s in self.aligned_samples], axis=0)
             π = np.mean([s['π'] for s in self.aligned_samples], axis=0)
@@ -181,7 +192,7 @@ class GibbsModel(ABC):
             return {
                 "θ" : θ,
                 'π' : π,
-                'z' : self.z_ref,
+                'z' : best_z,
                 'loglike' : ll,
                 'posterior' : post
             }
@@ -196,7 +207,7 @@ class GibbsModel(ABC):
                 'μ': μ,
                 'Σ': Σ,
                 'π' : π,
-                'z' : self.z_ref,
+                'z' : best_z,
                 'x' : x,
                 'loglike' : ll,
                 'posterior' : post

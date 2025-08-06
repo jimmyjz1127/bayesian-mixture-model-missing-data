@@ -5,6 +5,8 @@ from scipy.stats import beta
 import numpy as np
 import random 
 
+from utils.ArbitraryImputer import mean_impute
+
 from scipy.optimize import linear_sum_assignment
 from sklearn.metrics import adjusted_rand_score
 
@@ -38,9 +40,9 @@ class BMMGibbs(GibbsModel):
             obs_mask = ~missing_mask # (N, D)  
             X_filled = np.nan_to_num(X, nan=0.0) 
 
-            X_exp = X_filled[:, None, :] # (N, 1, D)
+            X_exp = X_filled[:, None, :] # (N, 1,D)
             obs_exp = obs_mask.astype(float)[:,None,:] # (N, 1, D)
-            logθ_exp = logθ[None, :, :]  # (1, K, D)
+            logθ_exp = logθ[None, :, :]  # (1,K, D)
             log1mθ_exp = log1mθ[None, :, :] # (1, K, D)
 
             log_px = np.sum(
@@ -77,30 +79,34 @@ class BMMGibbs(GibbsModel):
 
         self.θ = self.rng.beta(self.a_0 + nkd1, self.b_0 + nkd0)
     
-    def sample_X_missing(self, z, θ, X, missing_mask):
-        N, D = X.shape
-        X_sample = X.copy()
+    def sample_X_missing(self):
+        N, D = self.X.shape
+        X_sample = self.X_miss.copy()
 
-        θ_indexed = θ[z]  # shape (n, D)
+        θ_indexed = self.θ[self.z]  # shape (n, D)
 
         sampled = np.random.binomial(1, θ_indexed)
 
-        X_sample[missing_mask] = sampled[missing_mask]
+        X_sample[self.missing_mask] = sampled[self.missing_mask]
 
-        return X_sample
+        self.X = X_sample
     
-    def fit(self, X, num_iters=6000, burn=2000, mnar=False):
+    def fit(self, X, num_iters=6000, burn=2000, mnar=False, collapse=False):
         '''
             Performs Gibbs Sampling 
             By default returns mean of aligned samples (using Hungarian algorithm)
         '''
-        self.X = X
         N,D = X.shape 
 
-        # assert np.nanmin(self.X) >= 0 and np.nanmax(self.X) <= 1, "X must be binary"
-
-        self.missing_mask = np.isnan(self.X)
+        self.missing_mask = np.isnan(X)
         self.missing = np.any(self.missing_mask)
+
+        if collapse:
+            self.X = X.copy()
+        else:
+            self.X_miss = X.copy()
+            self.X = mean_impute(X)
+            self.missing=False
 
         self.z = np.random.randint(0,self.K,size=N)
 
@@ -115,6 +121,9 @@ class BMMGibbs(GibbsModel):
             ps,loglike,R = self.likelihood(self.X, self.missing_mask, self.missing, mnar)
             
             self.sampleZ(ps)
+
+            if not collapse:
+                self.sample_X_missing()
 
             if t > burn:
                 self.samples.append({

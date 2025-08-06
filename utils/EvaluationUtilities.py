@@ -15,8 +15,12 @@ def multi_restart(model_factory, X_train, X_test, N=10):
 
     return samples
 
-def get_full_results(model, X_train, X_test):
-    result = model.fit(X_train)
+def get_full_results(model, X_train, X_test, mnar=False):
+    result = None
+    if mnar:
+        result = model.fit(X_train, mnar=True)
+    else:
+        result = model.fit(X_train)
     if X_test is not None : 
         result['test_z'] = model.predict(X_test)
         result['X_test_impute'] = model.posterior_predict(X_test)
@@ -88,7 +92,7 @@ def evaluate_model(method_fn, X_missing_train, X_true_train, y_train,
 
 
 
-def run_full_evaluation(dataset_train, dataset_test, methods, missing_rates=[0.1,0.2,0.3,0.4,0.5], bernoulli=False):
+def run_full_evaluation(dataset_train, dataset_test, methods, missing_rates, bernoulli=False):
     results = []
 
     for rate in missing_rates:
@@ -97,6 +101,10 @@ def run_full_evaluation(dataset_train, dataset_test, methods, missing_rates=[0.1
 
         X_missing_test, y_test = dataset_test.apply_missingness(missing_rate=rate)
         X_true_test = dataset_test.get_complete_data()
+
+        N,D = X_missing_train.shape
+
+        print("True Missing Percent:", np.sum(np.isnan(X_missing_train)) / (N * D))
 
         for name, method_fn in methods.items():
             print(name, rate, "Running Evaluation...")

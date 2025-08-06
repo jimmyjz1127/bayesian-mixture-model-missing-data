@@ -5,6 +5,7 @@ from scipy.stats import dirichlet
 from scipy.stats import multivariate_normal
 from scipy.optimize import linear_sum_assignment
 from sklearn.metrics import adjusted_rand_score
+from utils.ArbitraryImputer import mean_impute
 
 import numpy as np
 import random 
@@ -29,16 +30,34 @@ class GMMGibbs(GibbsModel):
         self.ν_0 = priorParameters.ν_0
         self.model_type = "gaussian"
 
-    def likelihood(self, X, mnar=False):
+    def likelihood(self, X, mnar=False, collapse=False):
         N,D = X.shape
         K = self.π.shape[0]
         
         logp = np.zeros((N,K))
-
+        
         for k in range(K):
-            logp[:,k] = np.log(self.π[k]) + multivariate_normal.logpdf(X, mean=self.μ[k],cov=self.Σ[k])
+            if not self.missing or not collapse:
+                logp[:,k] = np.log(self.π[k]) + multivariate_normal.logpdf(X, mean=self.μ[k],cov=self.Σ[k], allow_singular=True)
+            else:
+                μ = self.μ[k]
+                Σ = self.Σ[k]
+                π = self.π[k]
+                for i in range(N):
+                    miss_mask = self.missing_mask[i]
+                    obs_mask = ~miss_mask
 
-        if mnar:
+                    x_o = X[i][obs_mask]
+                    if x_o.size == 0:
+                        logp[i,k] = np.log(π)  # Just prior — no data likelihood
+                        continue
+                    μ_o  = μ[obs_mask]
+                    Σ_oo = Σ[np.ix_(obs_mask, obs_mask)]
+                    Σ_oo = 0.5 * (Σ_oo + Σ_oo.T) + (1e-6 * np.eye(Σ_oo.shape[0])) # regularization
+
+                    logp[i,k] = np.log(π) + multivariate_normal.logpdf(x_o, mean=μ_o, cov=Σ_oo, allow_singular=True)
+
+        if mnar and self.missing:
             obs_mask = (~self.missing_mask).astype(float)
             logp += (obs_mask @ np.log(self.γ).T + (1 - obs_mask) @ np.log(1 - self.γ).T)
 
@@ -76,8 +95,10 @@ class GMMGibbs(GibbsModel):
             Σ_oo = Σ[obs_mask][:, obs_mask]
             Σ_hh = Σ[miss_mask][:, miss_mask]
 
-            m_i = μ_h + Σ_ho @ np.linalg.inv(Σ_oo) @ (self.X[i,obs_mask] - μ_o)
-            V_i = Σ_hh - Σ_ho @ np.linalg.inv(Σ_oo) @ Σ_oh
+            Σ_oo_inv = np.linalg.inv(Σ_oo)
+
+            m_i = μ_h + Σ_ho @ Σ_oo_inv @ (self.X[i,obs_mask] - μ_o)
+            V_i = Σ_hh - Σ_ho @ Σ_oo_inv @ Σ_oh
 
             X_sample[i,miss_mask] = np.random.multivariate_normal(m_i,V_i)
 
@@ -109,15 +130,8 @@ class GMMGibbs(GibbsModel):
             μ_n = (self.k_0[k] * self.m_0[k] + n_k * x_bar[k])/k_n
             self.μ[k] = np.random.multivariate_normal(mean=μ_n, cov=self.Σ[k]/k_n)
 
-    
-    # @staticmethod
-    def mean_impute(self, X, missing_mask):
-        X_0 = X.copy()
-        means = np.nanmean(np.where(missing_mask, np.nan, X), axis=0)
-        X_0[missing_mask] = np.take(means, np.where(missing_mask)[1])
-        return X_0
 
-    def fit(self, X, num_iters=6000, burn=2000, mnar=False):
+    def fit(self, X, num_iters=6000, burn=2000, mnar=False, collapse=False):
         """ 
             Main Gibbs Sampling Loop
         """
@@ -131,9 +145,8 @@ class GMMGibbs(GibbsModel):
 
         self.π = self.rng.dirichlet(self.α_0)
         self.z = np.random.randint(0,self.K,size=N)
-        x = X.copy() if not self.missing else self.mean_impute(self.X,self.missing_mask)
+        x = self.X.copy() if not self.missing else mean_impute(self.X)
         self.sample_NIW(x)
-
 
         for t in range(0, num_iters + burn):
             self.sample_π()
@@ -143,7 +156,7 @@ class GMMGibbs(GibbsModel):
 
             self.sample_NIW(x)
             if mnar : self.sample_γ()
-            p, loglike = self.likelihood(x, mnar)
+            p, loglike = self.likelihood(x, mnar, collapse)
             self.sampleZ(p)
 
             if t > burn:

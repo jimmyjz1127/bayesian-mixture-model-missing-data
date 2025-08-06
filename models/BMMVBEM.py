@@ -170,57 +170,6 @@ class BMMVBEM(VBEMModel):
 
         return self.result
 
-    # def fit(self, X, mode=0, max_iters=200, tol=1e-4):
-    #     '''
-    #         Parameters 
-    #             X       : input data matrix (N x D)
-    #             K       : number of components (K)
-    #             mode : 0 update pi as RV, 1 to update MLE style
-    #     '''
-    #     self.X = X
-    #     self.mode = mode
-    #     self.fitted = True
-    #     self.missing_mask = np.isnan(self.X)
-    #     self.missing = np.any(self.missing_mask)
-
-    #     N,D = self.X.shape
-    #     K= self.K
-
-    #     self.a = self.a_0.copy() + np.random.gamma(1.0, 0.1, size=(K, D))
-    #     self.b = self.b_0.copy() + np.random.gamma(1.0, 0.1, size=(K, D))
-    #     self.α = self.α_0.copy()
-    #     self.π = np.random.dirichlet(alpha=self.α)
-
-    #     loglikes = []
-    #     elbos = []
-
-    #     for t in range(max_iters):
-    #         logprob, self.x_hat = self.logprob(self.X, self.missing_mask)
-    #         self.R, loglike =self.update_z(logprob)
-    #         self.update_π()
-    #         self.update_Θ()
-    #         elbo = self.compute_elbo()
-
-    #         loglikes.append(loglike)
-    #         elbos.append(elbo)
-
-    #         if t > 1 and np.abs(elbos[t] - elbos[t-1]) < tol:
-    #             break
-
-    #     self.z = np.argmax(self.R, axis=1)
-
-    #     self.result = {
-    #         'R'            : self.R,             # Responsibility matrix  (N,K)
-    #         'z'            : self.z,             # Cluster assignments    (N)
-    #         'α'            : self.α,             # dirichlet prior        (K)
-    #         'a'            : self.a,             # Beta a parameter       (K)
-    #         'b'            : self.b,             # Beta b parameter       (K)
-    #         'x_hat'        : self.x_hat,         # sufficent stats x      (K,D)
-    #         'loglike'     : loglikes,      # log likelihoods
-    #         'elbo'        : elbos          # elbos 
-    #     }
-
-    #     return self.result
     
     def predict(self, X_new):
         missing_mask = np.isnan(X_new)
