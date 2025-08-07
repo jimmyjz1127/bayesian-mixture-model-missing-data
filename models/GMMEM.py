@@ -19,7 +19,7 @@ class GMMEM:
         K = self.K
         self.R = np.zeros((N,K))
 
-        if not self.missing:
+        if not self.missing: # if complete data, compute responsibility using all data
             for k in range(K):
                 Σ = 0.5 * (self.Σ[k] + self.Σ[k].T) + (1e-6 * np.eye(self.Σ[k].shape[0]))
                 self.R[:,k] = np.log(self.π[k] + eps) + multivariate_normal.logpdf(self.X, self.μ[k], Σ,allow_singular=True)
@@ -34,7 +34,7 @@ class GMMEM:
                 for k in range(K):
                     μ_o = self.μ[k][obs_mask]
                     Σ_oo = self.Σ[k][np.ix_(obs_mask, obs_mask)]
-                    Σ_oo = 0.5 * (Σ_oo + Σ_oo.T) + (1e-6 * np.eye(Σ_oo.shape[0]))
+                    Σ_oo = 0.5 * (Σ_oo + Σ_oo.T) + (1e-6 * np.eye(Σ_oo.shape[0])) #regularization
 
                     self.R[i,k] = np.log(self.π[k] + eps) + multivariate_normal.logpdf(self.X[i,obs_mask],μ_o,Σ_oo,allow_singular=True)
 
