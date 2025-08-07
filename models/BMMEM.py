@@ -5,12 +5,18 @@ from sklearn.metrics import adjusted_rand_score
 from scipy.special import logsumexp
 
 class BMMEM:
-    def __init__(self, K):
+    def __init__(self, K, complete_case=False):
+        """
+            Parameters 
+                K             : number of components 
+                complete_case : whether to delete (ignore) incomplete datapoints
+        """
+
         self.rng = np.random.default_rng(5099)
         self.K = K
         self.fitted = False
+        self.complete_case = complete_case
 
-    
     def e_step(self,eps=1e-14):
         N,D = self.X.shape
         K = self.K
@@ -21,9 +27,11 @@ class BMMEM:
         else:
             for i in range(N):
                 mask = ~self.missing_mask[i]
-                if not np.any(mask):
+            
+                if not np.any(mask) or (self.complete_case and np.any(self.missing_mask[i])):
                     self.R[i,:] = np.log(self.π + eps)
                     continue
+
                 for k in range(K):
                     x_obs = self.X[i][mask]
                     θ_obs = self.θ[k][mask]
@@ -37,23 +45,34 @@ class BMMEM:
         log_norm = logsumexp(self.R, axis=1, keepdims=True)
         self.R = np.exp(self.R - log_norm)
 
-        loglik = np.sum(log_norm) / N
+        # loglik = np.sum(log_norm) / N
+        if self.complete_case:
+            valid_rows = ~np.any(self.missing_mask, axis=1)
+            loglik = np.sum(log_norm[valid_rows]) / np.sum(valid_rows)
+        else:
+            loglik = np.sum(log_norm) / N
 
         return loglik
     
+
     def m_step(self, eps=1e-10):
         N,D = self.X.shape
+        if self.complete_case:
+            # Filter to only complete rows
+            complete_rows = ~np.any(self.missing_mask, axis=1)
+            x = self.X[complete_rows]
+            R = self.R[complete_rows]
+        else:
+            x = self.X.copy()
+            R = self.R.copy()
+            if self.missing:
+                x[self.missing_mask] = (self.R @ self.θ)[self.missing_mask]
 
-        nk = self.R.sum(axis=0)
+        nk = R.sum(axis=0)
         nk_safe = np.maximum(nk, eps)
 
-        x = self.X
-        if self.missing:
-            x = self.X.copy()
-            x[self.missing_mask] = (self.R@self.θ)[self.missing_mask]
-
-        self.θ = (self.R.T @ x)/nk_safe[:,None]
-        self.π = nk_safe/N
+        self.θ = (R.T @ x) / nk_safe[:, None]
+        self.π = nk_safe / nk_safe.sum()
 
     
     def fit(self, X, max_iters=200, tol=1e-4):
@@ -109,7 +128,7 @@ class BMMEM:
                 mask = ~missing_mask[i]
                 x_obs = X_new[i][mask]
 
-                if not np.any(mask):
+                if not np.any(mask)or (self.complete_case and np.any(~self.missing_mask[i])):
                     R[i,:] = np.log(self.π + eps)
                     continue
                 

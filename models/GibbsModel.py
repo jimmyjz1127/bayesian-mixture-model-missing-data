@@ -149,10 +149,9 @@ class GibbsModel(ABC):
     def relabel_sample(self, sample, perm):
         sample = copy.deepcopy(sample)
         
-        # Relabel cluster assignments
         sample['z'] = np.array([perm[label] for label in sample['z']])
         
-        # Relabel all other keys if the first dimension matches K
+        # Relabel all other items (params) if the first dimension matches K
         K = len(perm)
         for key, value in sample.items():
             if key == 'z':
@@ -172,7 +171,7 @@ class GibbsModel(ABC):
 
         self.aligned_samples = []
         for t, sample in enumerate(self.samples):
-            # Compute permutation to align current sample's z to reference
+            # permutation to align current sample's z to reference
             perm = self.hungarian_permutation(self.z_ref, sample['z'], self.K)
             aligned_sample = self.relabel_sample(sample, perm)
             self.aligned_samples.append(aligned_sample)

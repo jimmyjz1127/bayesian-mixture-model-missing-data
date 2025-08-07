@@ -8,10 +8,11 @@ from utils.ArbitraryImputer import mean_impute
 
 
 class GMMEM:
-    def __init__(self, K):
+    def __init__(self, K, complete_case=False):
         self.rng = np.random.default_rng(5099)
         self.K = K
         self.fitted = False
+        self.complete_case = complete_case
 
     def e_step(self, eps=1e-14):
         N,D = self.X.shape
@@ -26,7 +27,7 @@ class GMMEM:
             for i in range(N):
                 obs_mask = ~self.missing_mask[i]
 
-                if not np.any(obs_mask):
+                if not np.any(obs_mask) or (self.complete_case and np.any(self.missing_mask[i])):
                     self.R[i,:] = np.log(self.π + eps)
                     continue
 
@@ -41,16 +42,40 @@ class GMMEM:
         self.R = np.exp(self.R - log_norm)
         self.z = np.argmax(self.R, axis=1)
 
-        loglik = np.sum(log_norm) / N
+        # loglik = np.sum(log_norm) / N
+        if self.complete_case:
+            valid_rows = ~np.any(self.missing_mask, axis=1)
+            loglik = np.sum(log_norm[valid_rows]) / np.sum(valid_rows)
+        else:
+            loglik = np.sum(log_norm) / N
+
         return loglik
     
     def m_step(self, eps=1e-10):
         N,D = self.X.shape
         K = self.K
+
+        if self.complete_case:
+            valid_rows = ~np.any(self.missing_mask, axis=1)
+            X = self.X[valid_rows]
+            R = self.R[valid_rows]
+            nk = R.sum(axis=0)
+            nk_safe = np.maximum(nk, eps)
+
+            self.μ = (R.T @ X) / nk_safe[:, None]
+            
+            diff = X[:, None, :] - self.μ[None, :, :]
+            outer = diff[:, :, :, None] * diff[:, :, None, :]
+            weighted_outer = R[:, :, None, None] * outer
+            self.Σ = weighted_outer.sum(axis=0) / nk_safe[:, None, None]
+            self.π = nk_safe / nk_safe.sum()
+            return
+
         nk = self.R.sum(axis=0)
         nk_safe = np.maximum(nk, eps) # regularize for safety
 
-        self.π = nk / N
+        # self.π = nk / N
+        self.π = nk_safe / nk_safe.sum()
 
         if not self.missing: # if complete data
             self.μ = (self.R.T @ self.X)/nk_safe[:,None]
@@ -78,7 +103,6 @@ class GMMEM:
                     Σ_hh = self.Σ[k][np.ix_(miss_mask, miss_mask)]
 
                     Σ_oo = 0.5 * (Σ_oo + Σ_oo.T) + (1e-6 * np.eye(Σ_oo.shape[0])) # regularization
-
                     Σ_oo_inv = np.linalg.inv(Σ_oo)
 
                     m_i = μ_h + Σ_ho @ Σ_oo_inv @ (self.X[i,obs_mask] - μ_o)
@@ -168,7 +192,7 @@ class GMMEM:
                 obs_mask = ~miss_mask
 
                 for k in range(K):
-                    if not np.any(obs_mask):
+                    if not np.any(obs_mask)or (self.complete_case and np.any(~self.missing_mask[i])):
                         cond_means[i, k] = self.μ[k]
                         cond_covs[i, k] = self.Σ[k]
                         R[i,k] = np.log(self.π[k] + eps)
@@ -199,7 +223,6 @@ class GMMEM:
         R = np.exp(R - log_norm)
 
         loglike = np.sum(log_norm) / N
-
         return R, cond_means, cond_covs, loglike
     
     def posterior_predict(self, X_new, eps=1e-14):
@@ -227,7 +250,6 @@ class GMMEM:
 
         return X_filled
         
-    
     def predict(self, X_new):
         R, _, _, _ = self.compute_responsibility(X_new)
         return np.argmax(R, axis=1)
