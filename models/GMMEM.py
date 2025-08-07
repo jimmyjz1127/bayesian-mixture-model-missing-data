@@ -42,12 +42,12 @@ class GMMEM:
         self.R = np.exp(self.R - log_norm)
         self.z = np.argmax(self.R, axis=1)
 
-        # loglik = np.sum(log_norm) / N
-        if self.complete_case:
-            valid_rows = ~np.any(self.missing_mask, axis=1)
-            loglik = np.sum(log_norm[valid_rows]) / np.sum(valid_rows)
-        else:
-            loglik = np.sum(log_norm) / N
+        loglik = np.sum(log_norm) / N
+        # if self.complete_case:
+        #     valid_rows = ~np.any(self.missing_mask, axis=1)
+        #     loglik = np.sum(log_norm[valid_rows]) / np.sum(valid_rows)
+        # else:
+        #     loglik = np.sum(log_norm) / N
 
         return loglik
     
@@ -192,7 +192,7 @@ class GMMEM:
                 obs_mask = ~miss_mask
 
                 for k in range(K):
-                    if not np.any(obs_mask)or (self.complete_case and np.any(~self.missing_mask[i])):
+                    if not np.any(obs_mask):
                         cond_means[i, k] = self.μ[k]
                         cond_covs[i, k] = self.Σ[k]
                         R[i,k] = np.log(self.π[k] + eps)

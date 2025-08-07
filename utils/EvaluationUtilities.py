@@ -5,6 +5,8 @@ from sklearn.metrics import mean_squared_error
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+from models.KMeans import CustomKMeans
+
 
 def multi_restart(model_factory, X_train, X_test, X_train_true, N=10):
     samples = []
@@ -21,10 +23,12 @@ def get_full_results(model, X_train, X_test,X_train_true, mnar=False):
         result = model.fit(X_train, mnar=True)
     else:
         result = model.fit(X_train)
-    # if X_test is not None : 
-    #     result['test_z'] = model.predict(X_test)
-    #     result['X_test_impute'] = model.posterior_predict(X_test)
-    # result['X_train_impute'] = model.posterior_predict(X_train)
+    if X_test is not None : 
+        result['test_z'] = model.predict(X_test)
+        if not isinstance(model, CustomKMeans):
+            result['X_test_impute'] = model.posterior_predict(X_test)
+    if not isinstance(model, CustomKMeans):
+        result['X_train_impute'] = model.posterior_predict(X_train)
 
     result['loglike'] = model.log_likelihood(X_train_true)
     return result

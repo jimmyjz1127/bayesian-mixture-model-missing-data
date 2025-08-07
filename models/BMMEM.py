@@ -45,12 +45,12 @@ class BMMEM:
         log_norm = logsumexp(self.R, axis=1, keepdims=True)
         self.R = np.exp(self.R - log_norm)
 
-        # loglik = np.sum(log_norm) / N
-        if self.complete_case:
-            valid_rows = ~np.any(self.missing_mask, axis=1)
-            loglik = np.sum(log_norm[valid_rows]) / np.sum(valid_rows)
-        else:
-            loglik = np.sum(log_norm) / N
+        loglik = np.sum(log_norm) / N
+        # if self.complete_case:
+        #     valid_rows = ~np.any(self.missing_mask, axis=1)
+        #     loglik = np.sum(log_norm[valid_rows]) / np.sum(valid_rows)
+        # else:
+        #     loglik = np.sum(log_norm) / N
 
         return loglik
     
