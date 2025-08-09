@@ -26,9 +26,9 @@ def get_full_results(model, X_train, X_test,X_train_true, mnar=False):
     if X_test is not None : 
         result['test_z'] = model.predict(X_test)
         if not isinstance(model, CustomKMeans):
-            result['X_test_impute'] = model.posterior_predict(X_test)
+            result['X_test_impute'] = model.impute(X_test)
     if not isinstance(model, CustomKMeans):
-        result['X_train_impute'] = model.posterior_predict(X_train)
+        result['X_train_impute'] = model.impute(X_train)
 
     result['loglike'] = model.log_likelihood(X_train_true)
     return result

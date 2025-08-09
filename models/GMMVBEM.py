@@ -72,22 +72,23 @@ class GMMVBEM(VBEMModel):
             obs_mask = ~miss_mask
 
             x_o = X[i][obs_mask]
+            oi = np.flatnonzero(obs_mask)
+            hi = np.flatnonzero(miss_mask)
 
             for k in range(self.K):
                 m = self.m[k]
                 Σ = self.Σ[k]
 
-                if not np.any(obs_mask):
-                    m_ho[i, k] = m[miss_mask]
-                    V_ho[i, k] = Σ[np.ix_(miss_mask, miss_mask)]
-                    continue
+                # if not np.any(obs_mask):
+                #     m_ho[i, k] = m[miss_mask]
+                #     V_ho[i, k] = Σ[np.ix_(miss_mask, miss_mask)]
+                #     continue
 
-                m_h = m[miss_mask]
-                m_o = m[obs_mask]
-                Σ_oh = Σ[obs_mask][:, miss_mask]
-                Σ_ho = Σ[miss_mask][:, obs_mask]
-                Σ_oo = Σ[obs_mask][:, obs_mask]
-                Σ_hh = Σ[miss_mask][:, miss_mask]
+                m_o = m[oi]; m_h = m[hi]
+                Σ_oo = Σ[np.ix_(oi, oi)]
+                Σ_ho = Σ[np.ix_(hi, oi)]
+                Σ_oh = Σ[np.ix_(oi, hi)]
+                Σ_hh = Σ[np.ix_(hi, hi)]
 
                 Σ_oo = 0.5 * (Σ_oo + Σ_oo.T) + (1e-6 * np.eye(Σ_oo.shape[0]))
                 inv_Σ_oo = np.linalg.pinv(Σ_oo)
@@ -311,7 +312,7 @@ class GMMVBEM(VBEMModel):
 
         return np.argmax(R, axis=1)
     
-    def posterior_predict(self, X_new, eps=1e-14):
+    def impute(self, X_new, eps=1e-14):
         N,D = X_new.shape
         missing_mask = np.isnan(X_new)
 
@@ -327,7 +328,19 @@ class GMMVBEM(VBEMModel):
 
         X_filled = X_new.copy()
         for i in range(N):
-            X_filled[i][missing_mask[i]] = np.sum(R[i] * m_ho[i])
+            miss = missing_mask[i]
+            if not np.any(miss):
+                continue
+            # X_filled[i][missing_mask[i]] = np.sum(R[i] * m_ho[i])
+            # Stack per-component conditional means into (K, M_i)
+            Mi = np.sum(miss)
+            Mmat = np.empty((self.K, Mi), dtype=float)
+            for k in range(self.K):
+                mk = np.asarray(m_ho[i, k], dtype=float)
+                Mmat[k] = mk
+
+            # Weighted sum across components → (M_i,)
+            X_filled[i, miss] = R[i] @ Mmat
 
         return X_filled
     

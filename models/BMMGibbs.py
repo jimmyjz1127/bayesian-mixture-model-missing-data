@@ -187,6 +187,49 @@ class BMMGibbs(GibbsModel):
         R = self.compute_responsibility(X_new, mnar)
         zs = np.argmax(R, axis=1)
         return zs
+    
+    def impute(self, X_new, sample=None, eps=1e-14):
+        N, D = X_new.shape
+        K = self.K
+        missing_mask = np.isnan(X_new)
+
+        if not self.fitted:
+            raise Exception("Model has not been fitted yet.")
+        if X_new.shape[1] != self.X.shape[1]:
+            raise Exception("Dimensions do not match fit.")
+        if not np.any(missing_mask):
+            return X_new
+        if sample is None:
+            sample = self.get_aligned_param_means()
+
+        π = np.asarray(sample['π'])
+        θ = np.asarray(sample['θ'])       
+        θ = np.clip(θ, eps, 1.0 - eps)
+
+        X_imputed = X_new.copy()
+
+        for i in range(N):
+            miss = missing_mask[i]
+            if not np.any(miss):
+                continue 
+
+            obs = ~miss
+            if not np.any(obs):
+                X_imputed[i] = π @ θ
+                continue
+
+            x_obs = X_new[i, obs]
+            logw = np.log(π + eps)
+            logw += (x_obs * np.log(θ[:, obs]) + (1.0 - x_obs) * np.log(1.0 - θ[:, obs])).sum(axis=1)
+
+            # normalize safely
+            m = np.max(logw)
+            w = np.exp(logw - m)
+            R = w / w.sum()
+
+            X_imputed[i, miss] = R @ θ[:, miss]
+
+        return X_imputed
 
 
 

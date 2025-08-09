@@ -1,10 +1,12 @@
 from abc import ABC, abstractmethod
 import numpy as np
 from sklearn.metrics import adjusted_rand_score
+from scipy.stats import multivariate_normal
 from scipy.optimize import linear_sum_assignment
 import random 
 import copy
 from scipy.stats import mode
+from scipy.special import logsumexp
 
 class GibbsModel(ABC):
     def __init__(self, prior):
@@ -67,75 +69,26 @@ class GibbsModel(ABC):
         if not self.fitted:
             raise Exception("Model has not been fitted yet.") 
         
-        avg_ari = 0.0
-        avg_ll = 0.0
-        avg_pl = 0.0
+        ari = []
+        ll = []
+        pl = []
 
         for sample in self.samples:
-            avg_ll += sample['loglike']
-            avg_pl += sample['posterior']
-            avg_ari += adjusted_rand_score(y,sample['z'])
+            ll.append(sample['loglike'])
+            pl.append(sample['posterior'])
+            ari.append( adjusted_rand_score(y,sample['z']))
 
         N = len(self.samples)
 
         return {
-            'avg_ari' : avg_ari / N,
-            'avg_ll'  : avg_ll / N,
-            'avg_pl'  : avg_pl / N
+            'avg_ari' : np.mean(ari),
+            'std_ari' : np.std(ari),
+            'avg_ll'  : np.mean(ll),
+            "std_ll"  : np.std(ll),
+            'avg_pl'  : np.mean(pl),
+            'std_pl'  : np.std(pl)
         }
     
-    def posterior_predict(self, X_new, sample=None):
-        N, D = X_new.shape
-        K = self.K
-        missing_mask = np.isnan(X_new)
-
-        if not self.fitted:
-            raise Exception("Model has not been fitted yet.")
-        if X_new.shape[1] != self.X.shape[1]:
-            raise Exception("Dimensions do not match fit.")
-        if not np.any(missing_mask):
-            return X_new
-        if sample is None:
-            sample = self.aligned_means
-
-        π = sample['π'] 
-        X_imputed = X_new.copy()
-
-        for i in range(N):
-            mask = missing_mask[i]
-            obs_mask = ~mask
-
-            if not np.any(mask):
-                continue
-
-            # Sample cluster assignment
-            z = np.random.choice(K, p=π)
-
-            # For BMM:
-            if self.model_type == 'bernoulli':
-                θ = sample['θ']
-                probs = θ[z]
-                X_imputed[i, mask] = np.random.binomial(1, probs[mask])
-
-            # For GMM:
-            elif self.model_type == 'gaussian':
-                μ = sample['μ'][z]
-                Σ = sample['Σ'][z]
-
-                μ_o = μ[obs_mask]
-                μ_m = μ[mask]
-                Σ_oo = Σ[np.ix_(obs_mask, obs_mask)]
-                Σ_om = Σ[np.ix_(obs_mask, mask)]
-                Σ_mo = Σ[np.ix_(mask, obs_mask)]
-                Σ_mm = Σ[np.ix_(mask, mask)]
-
-                x_obs = X_new[i, obs_mask]
-                μ_cond = μ_m + Σ_mo @ np.linalg.inv(Σ_oo) @ (x_obs - μ_o)
-                Σ_cond = Σ_mm - Σ_mo @ np.linalg.inv(Σ_oo) @ Σ_om
-
-                X_imputed[i, mask] = np.random.multivariate_normal(μ_cond, Σ_cond)
-
-        return X_imputed
     
     def hungarian_permutation(self, z_ref, z_new, K):
         cost_matrix = np.zeros((K, K))

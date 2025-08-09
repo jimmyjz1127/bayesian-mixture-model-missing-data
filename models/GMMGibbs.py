@@ -35,27 +35,27 @@ class GMMGibbs(GibbsModel):
         K = self.π.shape[0]
         
         logp = np.zeros((N,K))
+        π = np.clip(self.π, 1e-14, 1.0)
         
         for k in range(K):
             if not self.missing or not collapse:
-                logp[:,k] = np.log(self.π[k]) + multivariate_normal.logpdf(X, mean=self.μ[k],cov=self.Σ[k], allow_singular=True)
+                logp[:,k] = np.log(π[k]) + multivariate_normal.logpdf(X, mean=self.μ[k],cov=self.Σ[k], allow_singular=True)
             else:
                 μ = self.μ[k]
                 Σ = self.Σ[k]
-                π = self.π[k]
                 for i in range(N):
                     miss_mask = self.missing_mask[i]
                     obs_mask = ~miss_mask
 
                     x_o = X[i][obs_mask]
                     if x_o.size == 0:
-                        logp[i,k] = np.log(π)  # Just prior — no data likelihood
+                        logp[i,k] = np.log(π[k])  # Just prior — no data likelihood
                         continue
                     μ_o  = μ[obs_mask]
                     Σ_oo = Σ[np.ix_(obs_mask, obs_mask)]
                     Σ_oo = 0.5 * (Σ_oo + Σ_oo.T) + (1e-6 * np.eye(Σ_oo.shape[0])) # regularization
 
-                    logp[i,k] = np.log(π) + multivariate_normal.logpdf(x_o, mean=μ_o, cov=Σ_oo, allow_singular=True)
+                    logp[i,k] = np.log(π[k]) + multivariate_normal.logpdf(x_o, mean=μ_o, cov=Σ_oo, allow_singular=True)
 
         if mnar and self.missing:
             obs_mask = (~self.missing_mask).astype(float)
@@ -82,25 +82,32 @@ class GMMGibbs(GibbsModel):
             if not np.any(miss_mask):
                 continue
             obs_mask = ~miss_mask
+            obs_idx  = np.flatnonzero(obs_mask)
+            miss_idx = np.flatnonzero(miss_mask)
 
             if not np.any(obs_mask):
-                # Entire row is missing: sample from full μ, Σ
                 X_sample[i] = np.random.multivariate_normal(μ, Σ)
                 continue
 
-            μ_h = μ[miss_mask]
-            μ_o = μ[obs_mask]
-            Σ_oh = Σ[obs_mask][:, miss_mask]
-            Σ_ho = Σ[miss_mask][:, obs_mask]
-            Σ_oo = Σ[obs_mask][:, obs_mask]
-            Σ_hh = Σ[miss_mask][:, miss_mask]
+            μ_o  = μ[obs_idx]
+            μ_h  = μ[miss_idx]
+            Σ_oo = Σ[np.ix_(obs_idx,  obs_idx)]
+            Σ_ho = Σ[np.ix_(miss_idx, obs_idx)]
+            Σ_oh = Σ[np.ix_(obs_idx,  miss_idx)]
+            Σ_hh = Σ[np.ix_(miss_idx, miss_idx)]
 
-            Σ_oo_inv = np.linalg.inv(Σ_oo)
+            Σ_oo = Σ_oo + 1e-6 * np.eye(Σ_oo.shape[0]) # jitter for stability
+            try:
+                v = np.linalg.solve(Σ_oo, (self.X[i, obs_idx] - μ_o))
+            except np.linalg.LinAlgError:
+                v = np.linalg.pinv(Σ_oo) @ (self.X[i, obs_idx] - μ_o)
 
-            m_i = μ_h + Σ_ho @ Σ_oo_inv @ (self.X[i,obs_mask] - μ_o)
-            V_i = Σ_hh - Σ_ho @ Σ_oo_inv @ Σ_oh
+            m_i = μ_h + Σ_ho @ v
+            V_i = Σ_hh - Σ_ho @ (np.linalg.pinv(Σ_oo)) @ Σ_oh  
 
-            X_sample[i,miss_mask] = np.random.multivariate_normal(m_i,V_i)
+            # symmetry + jitter to ensure PSD
+            V_i = 0.5 * (V_i + V_i.T) + 1e-8 * np.eye(V_i.shape[0])
+            X_sample[i, miss_idx] = self.rng.multivariate_normal(m_i, V_i)
 
         return X_sample
     
@@ -126,6 +133,7 @@ class GMMGibbs(GibbsModel):
             diff = (x_bar[k] - self.m_0[k]).reshape(-1,1)
             S_n = self.S_0[k] + S + ((self.k_0[k] * n_k)/(k_n)) * (diff @ diff.T)
             self.Σ[k] = invwishart.rvs(df=self.ν_0[k] + n_k, scale=S_n)
+            self.Σ[k] = 0.5*(self.Σ[k] + self.Σ[k].T)
 
             μ_n = (self.k_0[k] * self.m_0[k] + n_k * x_bar[k])/k_n
             self.μ[k] = np.random.multivariate_normal(mean=μ_n, cov=self.Σ[k]/k_n)
@@ -264,7 +272,73 @@ class GMMGibbs(GibbsModel):
         return zs
     
 
-        
+    def impute(self, X_new, sample=None, eps=1e-14):
+        N, D = X_new.shape
+        K = self.K
+        missing_mask = np.isnan(X_new)
+
+        if not self.fitted:
+            raise Exception("Model has not been fitted yet.")
+        if X_new.shape[1] != self.X.shape[1]:
+            raise Exception("Dimensions do not match fit.")
+        if not np.any(missing_mask):
+            return X_new
+        if sample is None:
+            sample = self.get_aligned_param_means()
+
+        π = np.asarray(sample['π'])
+        μ = np.asarray(sample['μ'])    
+        Σ = np.asarray(sample['Σ'])     
+        X_imputed = X_new.copy()
+
+        for i in range(N):
+            mask = missing_mask[i]
+            obs_mask = ~mask
+            x_obs = X_new[i, obs_mask]
+
+            if not np.any(mask): continue
+            if not np.any(obs_mask):
+                X_imputed[i, :] = (π[:, None] * μ).sum(axis=0)
+                continue            
+
+            μ = sample['μ']
+            Σ = sample['Σ']
+            R = np.zeros((K))
+            for k in range(K):
+                μ_k = μ[k]
+                Σ_k = Σ[k]
+                μ_o = μ_k[obs_mask]
+                Σ_oo = Σ_k[np.ix_(obs_mask, obs_mask)]
+                x_obs = X_new[i, obs_mask]
+
+                try:
+                    logpdf = multivariate_normal.logpdf(x_obs, μ_o, Σ_oo)
+                except:
+                    logpdf = -np.inf  
+
+                R[k] = np.log(π[k] + eps) + logpdf
+            R = np.exp(R - logsumexp(R))
+
+            x_impute = np.zeros(np.sum(mask))
+            for k in range(K):
+                μ_k = μ[k]
+                Σ_k = Σ[k]
+                μ_o = μ_k[obs_mask]
+                μ_m = μ_k[mask]
+                Σ_oo = Σ_k[np.ix_(obs_mask, obs_mask)]
+                Σ_mo = Σ_k[np.ix_(mask, obs_mask)]
+
+                try:
+                    v = np.linalg.solve(Σ_oo, (x_obs - μ_o))
+                except np.linalg.LinAlgError:
+                    v = np.linalg.pinv(Σ_oo) @ (x_obs - μ_o)
+
+                μ_cond = μ_m + Σ_mo @ v
+                x_impute += R[k] * μ_cond
+
+            X_imputed[i, mask] = x_impute
+        return X_imputed
+    
 
 
 

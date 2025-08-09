@@ -59,4 +59,4 @@ class VBEMModel(ABC):
         return self.b_func(α) - self.b_func(self.α_0) + np.sum((self.α_0 - α) * (psi(α) - psi(α.sum())))
     
     def kl_z(self, R, α):
-        return np.sum(R * (psi(α) - psi(α.sum()))[None,:] - (R * np.log(R + 1e-12)))
+        return np.sum(R * (psi(α) - psi(α.sum()))[None,:] - (R * np.log(R + 1e-14)))

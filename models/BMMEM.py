@@ -147,7 +147,7 @@ class BMMEM:
 
         return R,loglike
     
-    def posterior_predict(self, X_new, eps=1e-14):
+    def impute(self, X_new, eps=1e-14):
         N,D = X_new.shape
         missing_mask = np.isnan(X_new)
 

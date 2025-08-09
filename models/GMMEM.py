@@ -51,7 +51,7 @@ class GMMEM:
 
         return loglik
     
-    def m_step(self, eps=1e-10):
+    def m_step(self, eps=1e-14):
         N,D = self.X.shape
         K = self.K
 
@@ -72,7 +72,7 @@ class GMMEM:
             return
 
         nk = self.R.sum(axis=0)
-        nk_safe = np.maximum(nk, eps) # regularize for safety
+        nk_safe = np.maximum(nk, eps) # regularize for 
 
         # self.π = nk / N
         self.π = nk_safe / nk_safe.sum()
@@ -83,6 +83,7 @@ class GMMEM:
             outer = diff[:, :, :, None] * diff[:, :, None, :]
             weighted_outer = self.R[:, :, None, None] * outer  # (N, K, D, D)
             self.Σ = weighted_outer.sum(axis=0) / nk_safe[:, None, None]
+            self.Σ += np.eye(D)[None, :, :] 
         else: # missing data
             new_μs = np.zeros((K,D))
             new_Σs = np.zeros((K,D,D))
@@ -91,8 +92,8 @@ class GMMEM:
                 miss_mask = self.missing_mask[i]
                 obs_mask = ~miss_mask
 
-                if not np.any(obs_mask):
-                    continue
+                # if not np.any(obs_mask):
+                #     continue
 
                 for k in range(K):
                     μ_h = self.μ[k][miss_mask]
@@ -225,7 +226,7 @@ class GMMEM:
         loglike = np.sum(log_norm) / N
         return R, cond_means, cond_covs, loglike
     
-    def posterior_predict(self, X_new, eps=1e-14):
+    def impute(self, X_new, eps=1e-14):
         ''' 
             Imputes missing entries using expectation 
         '''
