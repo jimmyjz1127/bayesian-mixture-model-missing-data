@@ -31,6 +31,7 @@ A research codebase for clustering with missing data using probabilistic mixture
 | `Evaluate.py`                | Main script to run all methods and **collect evaluation metrics** (saves CSVs).              |
 | `Evaluation.ipynb`           | Regenerates quantitative evaluation figures in the report.                                   |
 | `ImputationEvaluation.ipynb` | Builds imputation visualizations.                                                            |
+| `Documentation.pdf`          | Documentation for all of the model classes                                                   |
 
 > For CLI details to collect metrics with `Evaluate.py`, see **`EvaluationInstruction.md`**.
 
