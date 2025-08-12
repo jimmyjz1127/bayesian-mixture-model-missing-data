@@ -7,8 +7,17 @@ import matplotlib.pyplot as plt
 
 from models.KMeans import CustomKMeans
 
+'''
+    Contains utility functions used to run evaluation
+'''
+
+
 
 def multi_restart(model_factory, X_train, X_test, X_train_true, N=10):
+    """
+        For handling multiple restarts for EM, VBEM, and K-Means algorithms 
+    """
+
     samples = []
     for n in range(N):
         model = model_factory()
@@ -35,6 +44,9 @@ def get_full_results(model, X_train, X_test,X_train_true, mnar=False):
 
 
 def rmse(A,B):
+    """ 
+        For computing RMSE between ground truth complete data and imputed data
+    """
     if len(B) == 0 or len(A) == 0: return 0.0
     return np.sqrt(mean_squared_error(A,B))
 
