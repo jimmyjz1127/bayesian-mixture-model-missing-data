@@ -26,16 +26,29 @@ class GibbsModel(ABC):
         pass
 
     def sampleZ(self, p):      
-        # Inverse sample from categorical distribution
+        """
+            Samples cluster assignments from given categorical distribution
+
+            Parameters:
+                p: probability matrix (N, K) for the cluster assignments (not log form)
+        """
+
+        # inverse sample from categorical distribution
         cdf = np.cumsum(p, axis=1) # compute CDF for each row (each categorical distribution)
         u   = self.rng.random(size=(p.shape[0], 1))
         self.z = (cdf > u).argmax(axis=1)  # return first index where cdf is greater than random u
     
     def sample_π(self):
+        """
+            Samples mixture weights from the Dirichlet 
+        """
         z_counts = np.bincount((self.z).astype(np.int64), minlength=self.K)
         self.π = self.rng.dirichlet(self.α_0 + z_counts)   
 
     def sample_γ(self):
+        """
+            Samples the missing data bernoulli parameters (for MNAR approach)
+        """
         N,D = self.X.shape 
         obs_mask = (~self.missing_mask).astype(np.float64)
 
@@ -48,6 +61,12 @@ class GibbsModel(ABC):
 
 
     def get_map_params(self):
+        """
+            returns parameters corresponding to MAP
+            
+            Returns:
+                dict: parameters of the MAP estimate
+        """
         if not self.fitted:
             raise Exception("Model has not been fitted yet.") 
         
@@ -91,6 +110,17 @@ class GibbsModel(ABC):
     
     
     def hungarian_permutation(self, z_ref, z_new, K):
+        """
+            returns permutation between cluster assignments from two samples based on hungarian algorithm
+
+            parameters:
+                z_ref: the reference cluster assignments (used for alignment)
+                z_new: the new cluster assignments to align to the reference
+                K: number of components in mixture 
+
+            Returns:
+                np.ndarray: permutation array that aligns the new cluster assignments to reference
+        """
         cost_matrix = np.zeros((K, K))
         for i in range(K):
             for j in range(K):
@@ -100,6 +130,16 @@ class GibbsModel(ABC):
         return perm
 
     def relabel_sample(self, sample, perm):
+        """
+            relabels a sample based on a given permutation
+
+            Parmeters:
+                sample: gibbs sample to be relabeled
+                perm: permutation to apply to  sample
+
+            Returns:
+                dict: relabeled sample
+        """
         sample = copy.deepcopy(sample)
         
         sample['z'] = np.array([perm[label] for label in sample['z']])
@@ -115,6 +155,9 @@ class GibbsModel(ABC):
         return sample
 
     def relabel_all_samples(self):
+        """
+            relabels all samples using hungarian 
+        """
         if not self.fitted:
             raise Exception("Model has not been fitted yet.") 
 
@@ -130,6 +173,12 @@ class GibbsModel(ABC):
             self.aligned_samples.append(aligned_sample)
 
     def get_aligned_param_means(self):
+        """
+            returns the mean of the aligned (hungarian) parameters across all samples
+
+            Returns:
+                dict: dictionary containing the mean values for parameters
+        """
         if not self.fitted:
             raise Exception("Model has not been fitted yet.")
         

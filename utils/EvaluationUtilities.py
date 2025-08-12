@@ -104,7 +104,7 @@ def evaluate_model(method_fn, X_missing_train, X_true_train, y_train,
     return summary
 
 
-
+# main evaluation loop
 def run_full_evaluation(dataset_train, dataset_test, methods, missing_rates, bernoulli=False):
     results = []
 
@@ -129,36 +129,4 @@ def run_full_evaluation(dataset_train, dataset_test, methods, missing_rates, ber
             results.append(metrics)
 
     return pd.DataFrame(results)
-
-def plot_ari_by_missingness_line(df, metric,title='ARI by Method and Missing Rate'):
-
-    # Set style
-    sns.set(style="whitegrid")
-
-    # Create figure and axis
-    plt.figure(figsize=(10, 6))
-
-    # Unique methods
-    methods = df['method'].unique()
-    missing_rates = sorted(df['missing_rate'].unique())
-
-    # Plot each method
-    for method in methods:
-        sub_df = df[df['method'] == method].sort_values(by='missing_rate')
-        plt.errorbar(
-            sub_df['missing_rate'],
-            sub_df[metric] if metric in sub_df.columns else sub_df[metric],
-            yerr=sub_df[f'{metric}_std'] if f'{metric}_std' in sub_df.columns else sub_df[f'{metric}_std'],
-            label=method,
-            capsize=4,
-            marker='o',
-            linestyle='-'
-        )
-
-    plt.xlabel('Missing Rate')
-    plt.ylabel(metric)
-    plt.title(title)
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
 

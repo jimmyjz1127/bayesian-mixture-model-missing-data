@@ -19,7 +19,10 @@ class BMMGibbs(GibbsModel):
     """
     def __init__(self, priorParameters : BMMPriorParameters):
         """
-            Parameters 
+            Initializes BMM using Gibbs Sampling
+
+            Parameters:
+                priorParameters (BMMPriorParameters):  prior parameters for the Bernoulli Mixture Model
         """
         super().__init__(priorParameters)
 
@@ -28,6 +31,22 @@ class BMMGibbs(GibbsModel):
         self.model_type = "bernoulli"
 
     def likelihood(self,X,missing_mask,missing, mnar=False, eps=0):
+        """
+            computes log-likelihood for BMM with missing data
+
+            parameters:
+                X :  input data matrix (N x D)
+                missing_mask : boolean array indicating missing data (N x D)
+                missing (bool): whether there is missing data
+                mnar (bool): whether to model MNAR missingness
+                eps (float): small constant added to avoid numerical issues
+
+            Rrturns:
+                tuple:
+                    - p (np.narray): responsibility matrix (N x K)
+                    - loglik : loglikelihood of the data
+                    - log_ps (np.ndarray): log probabilities for each data point and component
+        """
         N, D = X.shape
         self.K, _ = self.θ.shape
 
@@ -63,6 +82,9 @@ class BMMGibbs(GibbsModel):
 
     
     def sample_θ(self) :
+        """
+            Samples the parameters of the BMM 
+        """
         zs_zerohot = np.eye(self.K)[self.z.astype(np.int64)]
          
         if self.missing: # If there is missing data 
@@ -80,6 +102,9 @@ class BMMGibbs(GibbsModel):
         self.θ = self.rng.beta(self.a_0 + nkd1, self.b_0 + nkd0)
     
     def sample_X_missing(self):
+        """
+            Samples the missing values in the data matrix 
+        """
         N, D = self.X.shape
         X_sample = self.X_miss.copy()
 
@@ -92,10 +117,19 @@ class BMMGibbs(GibbsModel):
         self.X = X_sample
     
     def fit(self, X, num_iters=6000, burn=2000, mnar=False, collapse=False):
-        '''
-            Performs Gibbs Sampling 
-            By default returns mean of aligned samples (using Hungarian algorithm)
-        '''
+        """
+            Performs Gibbs sampling for the BMM
+
+            Parameters:
+                X (np.ndarray):  input data matrix (N x D)
+                num_iters (int):  number of Gibbs sampling iterations
+                burn (int):  number of burn-in iterations to discard
+                mnar (bool): whether to model MNAR
+                collapse (bool): hether to collapse the model (marginalize missing entries)
+
+            Returns:
+                np.ndarray: aligned component means from the posterior samples
+        """
         N,D = X.shape 
 
         self.missing_mask = np.isnan(X)
@@ -142,6 +176,12 @@ class BMMGibbs(GibbsModel):
         return self.aligned_means
 
     def compute_posterior(self):
+        """
+        computes the posterior probability for the current parameters
+
+        returns:
+            float: posterior probability
+        """
         N,D = self.X.shape
 
         obs_mask = ~self.missing_mask
@@ -164,10 +204,16 @@ class BMMGibbs(GibbsModel):
 
 
     def compute_responsibility(self, X_new, mnar=False):
-        ''' 
-            Computes marginalized responsibility matrix for data with or without missing features 
-            Used for computing log likelihood for holdout set
-        '''
+        """
+            Ccmputes the responsibility matrix for the new data with or without missingness
+
+            parameters:
+                X_new (np.ndarray): input data matrix with missing values (
+                mnar (bool): Whether to model MNAR
+
+            Returns:
+                np.ndarray:  responsibility matrix for the new data
+        """
         N,D = X_new.shape
         missing_mask = np.isnan(X_new)
         missing = np.isnan(X_new).any()
@@ -175,6 +221,16 @@ class BMMGibbs(GibbsModel):
         return self.likelihood(X_new,missing_mask,missing, mnar)[2]
 
     def log_likelihood(self, X_new, mnar=False):
+        """
+            computes  loglike for new data under current parameters
+
+            Parameters:
+                X_new (np.ndarray): new data points for which to compute the loglike
+                mnar (bool): whether to model MNAR
+
+            Returns:
+                float: loglikelihood of new data
+        """
         N,D = X_new.shape
 
         R = self.compute_responsibility(X_new, mnar)
@@ -184,11 +240,32 @@ class BMMGibbs(GibbsModel):
         return loglike
     
     def predict(self, X_new, mnar=False):
+        """
+            predicts cluster assignments for new data
+
+            Parameters:
+                X_new (np.ndarray): new data points for which to predict cluster assignments
+                mnar (bool): Whether to model MNAR
+
+            Returns:
+                np.ndarray: predicted cluster assignments for new data points
+        """
         R = self.compute_responsibility(X_new, mnar)
         zs = np.argmax(R, axis=1)
         return zs
     
     def impute(self, X_new, sample=None, eps=1e-14):
+        """
+            imputes the missing entries in the new data matrix using current model parameters
+
+            Parameters
+                X_new (np.ndarray): new data points with missing values (NaN).
+                sample (dict, optional): specific Gibbs sample to use for imputation - Defaults to None
+                eps (float): small constant to avoid numerical issues
+
+            Returns
+                np.ndarray: imputed data matrix 
+        """
         N, D = X_new.shape
         K = self.K
         missing_mask = np.isnan(X_new)

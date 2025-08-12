@@ -25,6 +25,10 @@ class VBEMModel(ABC):
 
     
     def update_z(self,dataLogProb):
+        """
+            updates variational posterior for latent component assignments 
+        """
+
         N,_ = dataLogProb.shape
 
         R = np.zeros((N,self.K))
@@ -50,13 +54,22 @@ class VBEMModel(ABC):
         return R, loglik
     
     def update_π(self):
+        """ 
+            updates variational posterior for mixing weights
+        """
         self.α = self.α_0 + np.sum(self.R, axis=0) 
     
     def b_func(self, α):
         return np.sum(gammaln(α), axis=0) - gammaln(α.sum())
     
     def kl_pi(self, α):
+        """
+            ELBO component
+        """
         return self.b_func(α) - self.b_func(self.α_0) + np.sum((self.α_0 - α) * (psi(α) - psi(α.sum())))
     
     def kl_z(self, R, α):
+        """
+            ELBO component
+        """
         return np.sum(R * (psi(α) - psi(α.sum()))[None,:] - (R * np.log(R + 1e-14)))

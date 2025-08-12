@@ -1,15 +1,16 @@
 import numpy as np
 # from abc import ABC, abstractmethod
 import random
-from sklearn.metrics import adjusted_rand_score
 from scipy.special import logsumexp
 
 class BMMEM:
     def __init__(self, K, complete_case=False):
         """
-            Parameters 
-                K             : number of components 
-                complete_case : whether to delete (ignore) incomplete datapoints
+            Initializes the BMMEM model for BMM using the EM algorithm.
+
+            Parameters:
+                K (int): number of mixture components
+                complete_case (bool): If True, incomplete datapoints are ignored (complete case analysis)
         """
 
         self.rng = np.random.default_rng(5099)
@@ -18,6 +19,17 @@ class BMMEM:
         self.complete_case = complete_case
 
     def e_step(self,eps=1e-14):
+        """
+            performs the E-step of the algorithm, which computes the responsibility matrix 
+            based on the current estimates params
+
+            Parameters:
+                eps (float): A small constant to avoid numerical issues in logarithmic calculations
+
+            Returns:
+                float: The log-likelihood of the data given the current parameters
+        """
+
         N,D = self.X.shape
         K = self.K
         self.R = np.zeros((N,K))
@@ -56,6 +68,13 @@ class BMMEM:
     
 
     def m_step(self, eps=1e-10):
+        """
+            Performs the M-step of the EM algorithm, which updates the model parameters
+            based on the current responsibility matrix
+
+            Parameters:
+                eps (float): A small constant to prevent numerical issues
+        """
         N,D = self.X.shape
         if self.complete_case:
             # Filter to only complete rows
@@ -76,6 +95,22 @@ class BMMEM:
 
     
     def fit(self, X, max_iters=200, tol=1e-4):
+        """
+            Fits BMMEM model using the EM algorithm. Iterates between the E-step and M-step 
+            until convergence or the maximum number of iterations is reached.
+
+            Parameters:
+                X (np.ndarray):  input data matrix of shape (N, D) 
+                max_iters (int):  maximum number of iterations to run EM
+                tol (float): tolerance for convergence based on the log-likelihood change between iterations.
+
+            Returns:
+                dict: A dictionary containing the learned parameters and log-likelihood values:
+                    - 'z': cluster assignments for each data point (N)
+                    - 'π': mixture component weights (K)
+                    - 'θ': component parameters (K, D)
+                    - 'loglike': List of log-likelihood values over iterations
+        """
         N,D = X.shape
 
         self.X = X
@@ -111,8 +146,15 @@ class BMMEM:
     
     def compute_responsibility(self, X_new, eps=1e-14):
         """
+            computes the responsibility matrix for a new set of data points 
+
             Parameters:
-                X_new : (N,D) array with missing values (np.nan)
+                X_new (np.ndarray): The input data matrix with missing values (NaN) to compute the responsibilities for
+                eps (float): A small constant added to avoid numerical issues
+            Returns:
+                tuple: 
+                    - The responsibility matrix of shape (N, K)
+                    - The log-likelihood of the data under the current model parameters
         """
         N, D = X_new.shape
 
@@ -148,6 +190,16 @@ class BMMEM:
         return R,loglike
     
     def impute(self, X_new, eps=1e-14):
+        """
+            Imputes missing values in the new data matrix based on the current model parameters and responsibility matrix.
+
+            Parameters:
+                X_new (np.ndarray): The input data matrix with missing values (NaN) to be imputed.
+                eps (float): A small constant to prevent numerical issues. Defaults to 1e-14.
+
+            Returns:
+                np.ndarray: The imputed data matrix with missing values replaced by the model's imputed values.
+        """
         N,D = X_new.shape
         missing_mask = np.isnan(X_new)
 
@@ -170,9 +222,27 @@ class BMMEM:
     
 
     def log_likelihood(self, X_new):
+        """
+            computes the log-likelihood of the new data points under the current parameters
+
+            Parameters:
+                X_new (np.ndarray): new data points for which the log-likelihood is computed
+
+            Returns:
+                float: log-likelihood of the new data under the current model
+        """
         return self.compute_responsibility(X_new)[1]
     
     def predict(self, X_new):
+        """
+            Predicts the cluster assignments for new data points based on the learned parameters
+
+            Parameters:
+                X_new (np.ndarray): new data points to predict cluster assignments for
+
+            return:
+                np.ndarray: predicted cluster assignments for the new data points
+        """
         R,_ = self.compute_responsibility(X_new)
         return np.argmax(R, axis=1)
 

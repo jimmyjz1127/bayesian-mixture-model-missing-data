@@ -20,7 +20,7 @@ class GMMGibbs(GibbsModel):
 
     def __init__(self, priorParameters : GMMPriorParameters):
         """
-            Parameters 
+            Initializes the Gaussian Mixture Model using Gibbs Sampling
         """
         super().__init__(priorParameters)
 
@@ -31,6 +31,20 @@ class GMMGibbs(GibbsModel):
         self.model_type = "gaussian"
 
     def likelihood(self, X, mnar=False, collapse=False):
+        """
+            Computes loglike under GMM assum,ption
+
+            parameters:
+                X (np.ndarray): input data matrix (N x D)
+                mnar (bool): whether to model MNAR
+                collapse (bool): whether to collapse the model
+
+            Returns:
+                tuple:
+                    - p (np.ndarray): Responsibility matrix (N x K)
+                    - loglik (float): log-likelihood of the data
+                    - log_ps (np.ndarray): logprobs for each data point and component
+        """
         N,D = X.shape
         K = self.π.shape[0]
         
@@ -70,6 +84,12 @@ class GMMGibbs(GibbsModel):
         return p,loglik
     
     def sampleX(self):
+        """
+            samples missing data points in the dataset
+
+            Returns:
+                np.ndarray: sampled data matrix with imputed values 
+        """
         N, D = self.X.shape
         X_sample = self.X.copy()
 
@@ -112,6 +132,12 @@ class GMMGibbs(GibbsModel):
         return X_sample
     
     def sample_NIW(self, X):
+        """
+            samples parameters for NIW based on current data and component assignments
+
+            Parameters:
+                X (np.ndarray): input data matrix (N x D)
+        """
         N,D = X.shape
 
         zs_hot = np.eye(self.K)[self.z.astype(int)]
@@ -185,6 +211,15 @@ class GMMGibbs(GibbsModel):
         return self.map_params
     
     def compute_posterior(self, X):
+        """
+            computes posterior distribution for the model parameters
+
+            Pprameters:
+                X (np.ndarray): input data matrix (N x D)
+
+            Returns:
+                float: posterior probability 
+        """
         N,D = X.shape
 
         comp_prior = dirichlet.logpdf(self.π, self.α_0)
@@ -210,10 +245,16 @@ class GMMGibbs(GibbsModel):
         return posterior_prob
     
     def compute_responsibility(self, X, mnar=False):
-        ''' 
-            Computes marginalized responsibility matrix for data with or without missing features 
-            Used for computing log likelihood for holdout set
-        '''
+        """
+            Computes responsibility matrix for new data with or without missingness
+
+            Parameters:
+                X (np.ndarray): input data matrix with missing values 
+                mnar (bool): whether to model MNAR
+
+            Returns:
+                np.ndarray: responsibility matrix for new data
+        """
         N,D = X.shape
         missing_mask = np.isnan(X)
         obs_mask = ~missing_mask
@@ -266,8 +307,16 @@ class GMMGibbs(GibbsModel):
     
     def predict(self, X, sample=None, mnar=False):
         """
-            For making clustering predictions on a holdout set (test set)
-        """ 
+            predicts cluster assignments for new data points
+
+            Parameters
+                X (np.ndarray): new data points for which to predict assignments
+                sample (dict, optional): specific sample to use for predictions- Defaults to None
+                mnar (bool): Whether to model MNAR
+
+            Returns:
+                np.ndarray: predicted cluster assignments for new data
+        """
         if sample is None:
             sample = self.aligned_means
 
@@ -277,6 +326,17 @@ class GMMGibbs(GibbsModel):
     
 
     def impute(self, X_new, sample=None, eps=1e-14):
+        """
+            imputes missing entries in new data based on the current model parameters
+
+            Parameters:
+                X_new (np.ndarray): new data points with missing values 
+                sample (dict, optional): specific Gibbs sample to use for imputation. Defaults to Non
+                eps (float): small constant to avoid numerical issues
+
+            Returns:
+                np.ndarray:  imputed data matrix
+        """
         N, D = X_new.shape
         K = self.K
         missing_mask = np.isnan(X_new)

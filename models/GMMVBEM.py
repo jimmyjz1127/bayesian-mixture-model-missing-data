@@ -34,6 +34,9 @@ class GMMVBEM(VBEMModel):
         self.ν_0 = priorParameters.ν_0
 
     def update_Θ(self):
+        """
+            Updates varitional distribution over model parameters
+        """
         N, D = self.X.shape
 
         self.nks = self.R.sum(axis=0)  # (K,)
@@ -131,6 +134,8 @@ class GMMVBEM(VBEMModel):
     
     def kl_phi(self, m, V, Σ):
         K, D = m.shape
+
+        if not self.obs : return 0
 
         kl_total = 0.0
         for k in range(K):
@@ -252,6 +257,8 @@ class GMMVBEM(VBEMModel):
 
         self.missing_mask = np.isnan(self.X)
         self.missing = np.any(self.missing_mask)
+        self.obs = np.any(~self.missing_mask)
+        # if not obs : 
 
         self.fitted = True
         loglikes = []
@@ -306,6 +313,15 @@ class GMMVBEM(VBEMModel):
         return self.result
     
     def predict(self, X_new):
+        """
+            predicts cluster assignments for new data 
+
+            Parameters:
+                X_new : new data points for which to predict assignments
+
+            return:
+                predicted cluster assignments
+        """
         missing_mask = np.isnan(X_new)
         logprob,_,_ = self.logprob(X_new,missing_mask)
         R,_ = self.update_z(logprob)
@@ -313,6 +329,16 @@ class GMMVBEM(VBEMModel):
         return np.argmax(R, axis=1)
     
     def impute(self, X_new, eps=1e-14):
+        """
+            imputes missing values in input data using current parameters
+
+            Parameters:
+                X_new (np.ndarray): data matrix with missing values
+                eps (float): small constant to avoid numerical issues
+
+            Returns:
+                np.ndarray:  imputed data matrix
+        """
         N,D = X_new.shape
         missing_mask = np.isnan(X_new)
 
@@ -345,6 +371,15 @@ class GMMVBEM(VBEMModel):
         return X_filled
     
     def log_likelihood(self, X_new):
+        """
+            computes log likelihood for new data under current parameters
+
+            parameters:
+                X_new (np.ndarray): new data points
+
+            Returns:
+                float:  logikelihood of  new data
+        """
         missing_mask = np.isnan(X_new)
         logprob,_,_ = self.logprob(X_new,missing_mask)
         R,ll = self.update_z(logprob)

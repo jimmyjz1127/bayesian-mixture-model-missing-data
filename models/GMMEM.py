@@ -9,12 +9,29 @@ from utils.ArbitraryImputer import mean_impute
 
 class GMMEM:
     def __init__(self, K, complete_case=False):
+        """
+            initializess the GMMEM model for GMM using the EM algorithm.
+
+            Parameters:
+                K (int): The number of mixture componentss
+                complete_case (bool): If True, incomplete datapoints are ignored. Default is False
+        """
         self.rng = np.random.default_rng(5099)
         self.K = K
         self.fitted = False
         self.complete_case = complete_case
 
     def e_step(self, eps=1e-14):
+        """
+            performs the E-step of algorithm, which computes the responsibility matrix R
+            based on the current estimates of the model parameters
+
+            Parameters:
+                eps (float): small constant added to avoid numerical issues
+
+            Return:
+                float: log-likelihood of the data given the current parameters
+        """
         N,D = self.X.shape
         K = self.K
         self.R = np.zeros((N,K))
@@ -52,10 +69,17 @@ class GMMEM:
         return loglik
     
     def m_step(self, eps=1e-14):
+        """
+            Performs M-step of EM algorithm which updates the model parameters 
+            based on the current responsibility matrix R
+
+            Parameter:
+                eps (float): small constant added to prevent numerical issues
+        """
         N,D = self.X.shape
         K = self.K
 
-        if self.complete_case:
+        if self.complete_case: # if using complete case analysis
             valid_rows = ~np.any(self.missing_mask, axis=1)
             X = self.X[valid_rows]
             R = self.R[valid_rows]
@@ -128,6 +152,13 @@ class GMMEM:
             self.Σ = new_Σs
 
     def init_params(self, X, eps=1e-10):
+        """
+            initializes the model parameters based on the input data X using the responsibility matrix
+
+            Parameters:
+                X (np.ndarray): The input data matrix of shape (N, D)
+                eps (float): A small constant to prevent numerical issues
+        """
         N,D = X.shape
         K = self.K
         nk = self.R.sum(axis=0)
@@ -143,6 +174,23 @@ class GMMEM:
     
 
     def fit(self,X,max_iters=200,tol=1e-4):
+        """
+            Fits the model by iterating between the E-step and m-step
+
+            Parameters:
+                X (np.ndarray): input data matrix of shape (N, D)
+                max_iters (int): maximum number of iterations for EM
+                tol (float): tolerance for convergence based on the log-likelihood change between iterations
+
+            returns:
+                dict: dictionary containing the learned parameters and log-likelihood values:
+                    - 'z': cluster assignments for each data point (N)
+                    - 'R': Responsibility matrix (N, K)
+                    - 'μ': component means (K, D)
+                    - 'Σ': Component covariances (K, D, D)
+                    - 'π': mixture component weights (K)
+                    - 'loglike': list of log-likelihood values over iterations
+        """
         self.X = X 
         self.missing_mask = np.isnan(self.X)
         self.missing = np.any(self.missing_mask)
@@ -174,6 +222,18 @@ class GMMEM:
         } 
     
     def compute_responsibility(self, X_new, eps=1e-10):
+        """
+            computes responsibility matrix for a new set of data points
+
+            Parameters:
+                X_new (np.ndarray): The input data matrix with missing values (NaN) to compute the responsibilities for
+                eps (float): A small constant added to avoid numerical issues
+
+            returns:
+                tuple:
+                    - responsibility matrix of shape (N, K)
+                    - log-likelihood of the data under the current model parameters
+        """
         N,D = X_new.shape
         K = self.K
 
@@ -227,9 +287,16 @@ class GMMEM:
         return R, cond_means, cond_covs, loglike
     
     def impute(self, X_new, eps=1e-14):
-        ''' 
-            Imputes missing entries using expectation 
-        '''
+        """
+        iomputes missing values in the new data matrix based on the current model parameters
+
+        parameters:
+            X_new (np.ndarray): The input data matrix with missing values (NaN) to be imputed
+            eps (float): A small constant to prevent numerical issues
+
+        returns:
+            np.ndarray: the imputed data matrix with missing values replaced by the model's imputed values
+        """
         N,D = X_new.shape
         K = self.K
 
@@ -252,10 +319,28 @@ class GMMEM:
         return X_filled
         
     def predict(self, X_new):
+        """
+            predicts the cluster assignments for new data points based on the learned mixture model
+
+            parameters:
+                X_new (np.ndarray): new data points to predict cluster assignments for
+
+            returns:
+                np.ndarray: predicted cluster assignments for the new data points
+        """
         R, _, _, _ = self.compute_responsibility(X_new)
         return np.argmax(R, axis=1)
     
     def log_likelihood(self, X_new):
+        """
+            computes the log-likelihood of the new data points under the current model parameters
+
+            Parameters:
+                X_new (np.ndarray): new data points for which the log-likelihood is computed
+
+            Returns:
+                float: log-likelihood of the new data under the current params.
+        """
         R, _, _, ll = self.compute_responsibility(X_new)
         return ll
 
