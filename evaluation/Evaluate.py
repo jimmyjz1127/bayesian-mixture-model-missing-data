@@ -5,6 +5,12 @@ import pandas as pd
 from sklearn.metrics import adjusted_rand_score
 import argparse
 
+import os 
+import sys 
+project_root = os.path.abspath(os.path.join(os.getcwd(), '..'))
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
 
 from models.PriorParameters import GMMPriorParameters
 from models.PriorParameters import BMMPriorParameters
@@ -26,8 +32,10 @@ from datasets.Dataset import Dataset
     Data is saved to csv files in specified directory
 '''
 
+dataset_path = './../../Datasets'
+
 def eval(name,  model, K, save_dir):
-    dir_path = f"./../Datasets/{model}/Processed/{name}/"
+    dir_path = dataset_path + f"/{model}/Processed/{name}/"
     X_train = np.load(dir_path + f"X_train_{name}.npy")
     y_train = np.load(dir_path + f"y_train_{name}.npy")
     X_test = np.load(dir_path + f"X_test_{name}.npy")

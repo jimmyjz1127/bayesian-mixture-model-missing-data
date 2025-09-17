@@ -28,12 +28,12 @@ A research codebase for clustering with missing data using probabilistic mixture
 | `notebooks/`                 | Workbench notebooks (`Week1/` … `Week8/`), derivations, synthetic generation, preprocessing. |
 | `Results/`                   | Aggregated CSVs used to produce traceplots in the report (by dataset).                       |
 | `utils/`                     | Helpers: imputations, evaluation runners, plotting, etc.                                     |
-| `Evaluate.py`                | Main script to run all methods and **collect evaluation metrics** (saves CSVs).              |
-| `Evaluation.ipynb`           | Regenerates quantitative evaluation figures in the report.                                   |
-| `ImputationEvaluation.ipynb` | Builds imputation visualizations.                                                            |
+| `evaluation/Evaluate.py`                | Main script to run all methods and **collect evaluation metrics** (saves CSVs).              |
+| `evaluation/Evaluation.ipynb`           | Regenerates quantitative evaluation figures in the report.                                   |
+| `evaluation/ImputationEvaluation.ipynb` | Builds imputation visualizations.                                                            |
 | `Documentation.pdf`          | Documentation for all of the model classes                                                   |
 
-> For CLI details to collect metrics with `Evaluate.py`, see **`EvaluationInstruction.md`**.
+> For CLI details to collect metrics with `evaluate/Evaluate.py`, see **`evaluate/EvaluationInstruction.md`**.
 
 ---
 
